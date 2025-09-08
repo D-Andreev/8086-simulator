@@ -4,5 +4,8 @@ import "testing"
 
 func TestDecoder(t *testing.T) {
 	decoder := NewDecoder()
-	decoder.Decode([]byte("Hello, World!"))
+	_, err := decoder.Decode([]byte("Hello, World!"))
+	if err != nil {
+		t.Fatalf("Error decoding data: %v", err)
+	}
 }
