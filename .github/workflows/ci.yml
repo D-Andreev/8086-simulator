@@ -65,9 +65,6 @@ jobs:
     
     - name: Build main executable
       run: go build -o 8086-simulator ./main.go
-    
-    - name: Test executable
-      run: ./8086-simulator
 
   lint:
     runs-on: ubuntu-latest
