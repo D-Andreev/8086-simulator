@@ -82,7 +82,7 @@ type Instruction struct {
 }
 
 // NewInstruction creates a new Instruction with all default values
-func NewInstruction(instructions []byte, i int, p Pattern) *Instruction {
+func NewInstruction(instructions []byte, i int, p *Pattern) *Instruction {
 	return &Instruction{
 		Op:          p.Op,
 		OperandType: p.OperandType,
@@ -145,8 +145,8 @@ type Pattern struct {
 }
 
 // NewPattern creates a new Pattern with all default functions
-func NewPattern() Pattern {
-	return Pattern{
+func NewPattern() *Pattern {
+	return &Pattern{
 		GetOpCode:         func(instructions []byte, i int) byte { return 0 },
 		GetBytesCount:     func(_ *Pattern, _ *Instruction) int { return 2 },
 		GetDBit:           func(instructions []byte, i int) bool { return false },
@@ -167,10 +167,10 @@ func NewPattern() Pattern {
 	}
 }
 
-var Table = []Pattern{
+var Table = []*Pattern{
 	// MOV
 	// MOV - Register/memory to/from register
-	func() Pattern {
+	func() *Pattern {
 		p := NewPattern()
 		p.OpCode = 0b100010
 		p.Op = MOV
@@ -245,7 +245,7 @@ var Table = []Pattern{
 		return p
 	}(),
 	// MOV - Immediate to register
-	func() Pattern {
+	func() *Pattern {
 		p := NewPattern()
 		p.OpCode = 0b1011
 		p.Op = MOV
