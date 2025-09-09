@@ -81,11 +81,46 @@ type Instruction struct {
 	DestDisplacement   []byte
 }
 
+// NewInstruction creates a new Instruction with all default values
 func NewInstruction(instructions []byte, i int, p Pattern) *Instruction {
 	return &Instruction{
 		Op:          p.Op,
 		OperandType: p.OperandType,
 	}
+}
+
+// formatOperand formats an operand as either a register or memory address with displacement
+func (ins *Instruction) formatOperand(addr string, displacement []byte, register string) string {
+	if addr != "" {
+		result := fmt.Sprintf("[%s", addr)
+		if len(displacement) > 0 {
+			if len(displacement) == 1 {
+				result += fmt.Sprintf(" + %d", bits.ToSigned8(displacement[0]))
+			} else {
+				result += fmt.Sprintf(" + %d", bits.ToSigned16(displacement[0], displacement[1]))
+			}
+		}
+		result += "]"
+		return result
+	}
+	return register
+}
+
+// GetText formats the instruction as a string
+func (ins *Instruction) GetText(p *Pattern) string {
+	if !ins.DBit {
+		tmpAddr := ins.SourceAddr
+		tmpDisp := ins.SourceDisplacement
+		ins.SourceAddr = ins.DestAddr
+		ins.SourceDisplacement = ins.DestDisplacement
+		ins.DestAddr = tmpAddr
+		ins.DestDisplacement = tmpDisp
+	}
+
+	source := ins.formatOperand(ins.SourceAddr, ins.SourceDisplacement, ins.SourceRegister)
+	dest := ins.formatOperand(ins.DestAddr, ins.DestDisplacement, ins.DestRegister)
+
+	return fmt.Sprintf("%s %s, %s", p.Op, dest, source)
 }
 
 type Pattern struct {
@@ -109,13 +144,38 @@ type Pattern struct {
 	GetDestDisplacement   func(instructions []byte, i int, ins *Instruction) []byte
 }
 
+// NewPattern creates a new Pattern with all default functions
+func NewPattern() Pattern {
+	return Pattern{
+		GetOpCode:         func(instructions []byte, i int) byte { return 0 },
+		GetBytesCount:     func(_ *Pattern, _ *Instruction) int { return 2 },
+		GetDBit:           func(instructions []byte, i int) bool { return false },
+		GetWBit:           func(instructions []byte, i int) bool { return false },
+		GetMod:            func(instructions []byte, i int) byte { return 0 },
+		GetReg:            func(instructions []byte, i int) byte { return 0 },
+		GetRM:             func(instructions []byte, i int) byte { return 0 },
+		GetDestRegister:   func(_ bool, _ byte, _ byte, _ bool) string { return "" },
+		GetSourceRegister: func(_ bool, _ byte, _ byte, _ bool) string { return "" },
+		GetText: func(p *Pattern, ins *Instruction) string {
+			return ins.GetText(p)
+		},
+		GetImmediate:          func(_ []byte, _ int, _ *Instruction) int { return 0 },
+		GetSorceAddr:          func(_ []byte, _ int, _ *Instruction) string { return "" },
+		GetDestAddr:           func(_ []byte, _ int, _ *Instruction) string { return "" },
+		GetSourceDisplacement: func(_ []byte, _ int, _ *Instruction) []byte { return nil },
+		GetDestDisplacement:   func(_ []byte, _ int, _ *Instruction) []byte { return nil },
+	}
+}
+
 var Table = []Pattern{
 	// MOV
-	{
-		OpCode:      0b100010,
-		Op:          MOV,
-		OperandType: OpTypeRegToReg,
-		GetBytesCount: func(_ *Pattern, ins *Instruction) int {
+	// MOV - Register/memory to/from register
+	func() Pattern {
+		p := NewPattern()
+		p.OpCode = 0b100010
+		p.Op = MOV
+		p.OperandType = OpTypeRegToReg
+		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			defaultInc := 2
 			if ins.Mod == 0b00 && ins.RM == 0b110 {
 				if ins.SourceAddr == "bp" { // bp is speacial case for direct address
@@ -129,24 +189,23 @@ var Table = []Pattern{
 				defaultInc += 2
 			}
 			return defaultInc
-		},
-		GetOpCode: func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 2, 6) },
-		GetDBit:   func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 1) },
-		GetWBit:   func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 0) },
-		GetMod:    func(instructions []byte, i int) byte { return bits.GetBits(instructions[i+1], 6, 2) },
-		GetReg:    func(instructions []byte, i int) byte { return bits.GetBits(instructions[i+1], 3, 3) },
-		GetRM:     func(instructions []byte, i int) byte { return bits.GetBits(instructions[i+1], 0, 3) },
-		GetSourceRegister: func(dBit bool, reg byte, rm byte, wBit bool) string {
+		}
+		p.GetOpCode = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 2, 6) }
+		p.GetDBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 1) }
+		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 0) }
+		p.GetMod = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i+1], 6, 2) }
+		p.GetReg = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i+1], 3, 3) }
+		p.GetRM = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i+1], 0, 3) }
+		p.GetSourceRegister = func(dBit bool, reg byte, rm byte, wBit bool) string {
 			var sourceReg byte
 			if dBit {
 				sourceReg = rm
 			} else {
 				sourceReg = reg
 			}
-
 			return regFieldEnc[sourceReg][wBit]
-		},
-		GetDestRegister: func(dBit bool, reg byte, rm byte, wBit bool) string {
+		}
+		p.GetDestRegister = func(dBit bool, reg byte, rm byte, wBit bool) string {
 			var destReg byte
 			if dBit {
 				destReg = reg
@@ -154,57 +213,14 @@ var Table = []Pattern{
 				destReg = rm
 			}
 			return regFieldEnc[destReg][wBit]
-		},
-		GetText: func(p *Pattern, ins *Instruction) string {
-			var source, dest string
-			if !ins.DBit {
-				tmpAddr := ins.SourceAddr
-				tmpDisp := ins.SourceDisplacement
-				ins.SourceAddr = ins.DestAddr
-				ins.SourceDisplacement = ins.DestDisplacement
-				ins.DestAddr = tmpAddr
-				ins.DestDisplacement = tmpDisp
-			}
-			if ins.SourceAddr != "" {
-				source = fmt.Sprintf("[%s", ins.SourceAddr)
-				if len(ins.SourceDisplacement) > 0 {
-					// Make this better
-					if len(ins.SourceDisplacement) == 1 {
-						source += fmt.Sprintf(" + %d", bits.ToSigned8(ins.SourceDisplacement[0]))
-					} else {
-						source += fmt.Sprintf(" + %d", bits.ToSigned16(ins.SourceDisplacement[0], ins.SourceDisplacement[1]))
-					}
-				}
-				source += "]"
-			} else {
-				source = ins.SourceRegister
-			}
-			if ins.DestAddr != "" {
-				dest = fmt.Sprintf("[%s", ins.DestAddr)
-				if len(ins.DestDisplacement) > 0 {
-					// Make this better
-					if len(ins.DestDisplacement) == 1 {
-						dest += fmt.Sprintf(" + %d", bits.ToSigned8(ins.DestDisplacement[0]))
-					} else {
-						dest += fmt.Sprintf(" + %d", bits.ToSigned16(ins.DestDisplacement[0], ins.DestDisplacement[1]))
-					}
-				}
-				dest += "]"
-			} else {
-				dest = ins.DestRegister
-			}
-
-			return fmt.Sprintf("%s %s, %s", p.Op, dest, source)
-		},
-		GetImmediate: func(_ []byte, _ int, _ *Instruction) int { return 0 },
-		GetSorceAddr: func(_ []byte, _ int, ins *Instruction) string {
+		}
+		p.GetSorceAddr = func(_ []byte, _ int, ins *Instruction) string {
 			if ins.Mod == 0b11 {
 				return ""
 			}
 			return effectiveAddrEnc[ins.Mod][ins.RM]
-		},
-		GetDestAddr: func(_ []byte, _ int, _ *Instruction) string { return "" },
-		GetSourceDisplacement: func(instructions []byte, i int, ins *Instruction) []byte {
+		}
+		p.GetSourceDisplacement = func(instructions []byte, i int, ins *Instruction) []byte {
 			if ins.Mod == 0b00 && ins.RM == 0b110 {
 				return instructions[i+2 : i+4]
 			} else if ins.Mod == 0b01 {
@@ -214,8 +230,8 @@ var Table = []Pattern{
 			} else {
 				return nil
 			}
-		},
-		GetDestDisplacement: func(instructions []byte, i int, ins *Instruction) []byte {
+		}
+		p.GetDestDisplacement = func(instructions []byte, i int, ins *Instruction) []byte {
 			if ins.Mod == 0b00 && ins.RM == 0b110 {
 				return instructions[i+2 : i+4]
 			} else if ins.Mod == 0b01 {
@@ -225,46 +241,39 @@ var Table = []Pattern{
 			} else {
 				return nil
 			}
-		},
-	}, // Register/memory to/from register
-	/*{
-		OpCode: 0b100011,
-	},*/ // Immediate to register/memory
-	{
-		OpCode: 0b1011,
-		Op:     MOV,
-		GetBytesCount: func(_ *Pattern, ins *Instruction) int {
+		}
+		return p
+	}(),
+	// MOV - Immediate to register
+	func() Pattern {
+		p := NewPattern()
+		p.OpCode = 0b1011
+		p.Op = MOV
+		p.OperandType = OpTypeImmToReg
+		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			defaultInc := 2
 			if ins.WBit {
 				defaultInc++
 			}
 			return defaultInc
-		},
-		OperandType: OpTypeImmToReg,
-		GetOpCode:   func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 4, 4) },
-		GetDBit:     func(instructions []byte, i int) bool { return false },
-		GetWBit:     func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 3) },
-		GetMod:      func(instructions []byte, i int) byte { return 0 },
-		GetReg:      func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 0, 3) },
-		GetRM:       func(instructions []byte, i int) byte { return 0 },
-		GetDestRegister: func(_ bool, reg byte, _ byte, wBit bool) string {
+		}
+		p.GetOpCode = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 4, 4) }
+		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 3) }
+		p.GetReg = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 0, 3) }
+		p.GetDestRegister = func(_ bool, reg byte, _ byte, wBit bool) string {
 			return regFieldEnc[reg][wBit]
-		},
-		GetSourceRegister: func(dBit bool, reg byte, rm byte, wBit bool) string { return "" },
-		GetSorceAddr:      func(_ []byte, _ int, _ *Instruction) string { return "" },
-		GetDestAddr:       func(_ []byte, _ int, _ *Instruction) string { return "" },
-		GetText: func(p *Pattern, ins *Instruction) string {
+		}
+		p.GetText = func(p *Pattern, ins *Instruction) string {
 			return fmt.Sprintf("%s %s, %d", p.Op, ins.DestRegister, ins.Immediate)
-		},
-		GetImmediate: func(instructions []byte, i int, ins *Instruction) int {
+		}
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int {
 			if ins.WBit {
 				return bits.ToSigned16(instructions[i+1], instructions[i+2])
 			}
 			return bits.ToSigned8(instructions[i+1])
-		},
-		GetSourceDisplacement: func(_ []byte, _ int, _ *Instruction) []byte { return nil },
-		GetDestDisplacement:   func(_ []byte, _ int, _ *Instruction) []byte { return nil },
-	}, // Immediate to register
+		}
+		return p
+	}(),
 	// ADD
 	// SUB
 	// CMP
