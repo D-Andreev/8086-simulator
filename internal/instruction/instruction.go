@@ -285,6 +285,7 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return ins.GetFromToRegMemInstrByteCount()
 		}
+		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) int { return 0 }
 		p.GetOpCode = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 2, 6) }
 		p.GetDBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 1) }
 		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 0) }
@@ -302,6 +303,9 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return ins.GetImmToRegInstrByteCount()
 		}
+		p.GetDestRegister = func(ins *Instruction) string {
+			return regFieldEnc[ins.Reg][ins.WBit]
+		}
 		p.GetOpCode = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 4, 4) }
 		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 3) }
 		p.GetReg = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 0, 3) }
@@ -318,6 +322,7 @@ var Table = []*Pattern{
 		p.OpCode = 0b000000
 		p.Op = ADD
 		p.OperandType = OpTypeRegMemToFromReg
+		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) int { return 0 }
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return ins.GetFromToRegMemInstrByteCount()
 		}
@@ -355,6 +360,7 @@ var Table = []*Pattern{
 		p.OpCode = 0b001010
 		p.Op = SUB
 		p.OperandType = OpTypeRegMemToFromReg
+		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) int { return 0 }
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return ins.GetFromToRegMemInstrByteCount()
 		}
@@ -470,6 +476,7 @@ var Table = []*Pattern{
 		p.OpCode = 0b001110
 		p.Op = CMP
 		p.OperandType = OpTypeRegMemToFromReg
+		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) int { return 0 }
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return ins.GetFromToRegMemInstrByteCount()
 		}
