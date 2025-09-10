@@ -1,6 +1,8 @@
 package decoder
 
 import (
+	"fmt"
+
 	"github.com/8086-simulator/internal/instruction"
 )
 
@@ -14,20 +16,23 @@ func (d *Decoder) Decode(data []byte) ([]*instruction.Instruction, error) {
 	i := 0
 	var instructions []*instruction.Instruction
 	for i < len(data) {
+		instrFound := false
 		for _, p := range instruction.Table {
 			parsedOpCode := p.GetOpCode(data, i)
 			if parsedOpCode != p.OpCode {
 				continue
 			}
 
+			instrFound = true
 			ins := instruction.NewInstruction(data, i, p)
 			ins.DBit = p.GetDBit(data, i)
 			ins.WBit = p.GetWBit(data, i)
 			ins.Reg = p.GetReg(data, i)
 			ins.RM = p.GetRM(data, i)
 			ins.Mod = p.GetMod(data, i)
-			ins.DestRegister = p.GetDestRegister(ins.DBit, ins.Reg, ins.RM, ins.WBit)
-			ins.SourceRegister = p.GetSourceRegister(ins.DBit, ins.Reg, ins.RM, ins.WBit)
+			ins.SBit = p.GetSBit(data, i)
+			ins.DestRegister = p.GetDestRegister(ins)
+			ins.SourceRegister = p.GetSourceRegister(ins)
 			ins.SourceDisplacement = p.GetSourceDisplacement(data, i, ins)
 			ins.DestDisplacement = p.GetDestDisplacement(data, i, ins)
 			ins.Immediate = p.GetImmediate(data, i, ins)
@@ -36,6 +41,10 @@ func (d *Decoder) Decode(data []byte) ([]*instruction.Instruction, error) {
 			instructions = append(instructions, ins)
 			i += p.GetBytesCount(p, ins)
 			break
+		}
+
+		if !instrFound {
+			return nil, fmt.Errorf("instruction not found at index %d with opcode %d", i, data[i])
 		}
 	}
 
