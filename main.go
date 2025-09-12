@@ -24,13 +24,17 @@ func main() {
 	}
 
 	dec := decoder.NewDecoder()
-	_, err = dec.Decode(content)
+	instructions, err := dec.Decode(content)
 	if err != nil {
 		log.Fatalf("Error decoding data: %v", err)
 	}
 
 	if len(argsWithoutProg) > 1 && argsWithoutProg[1] == ExecMode {
 		sim := simulator.NewSimulator()
-		sim.Run()
+		sim.Init()
+		_, err := sim.Run(instructions)
+		if err != nil {
+			log.Fatalf("Error running instructions: %v", err)
+		}
 	}
 }

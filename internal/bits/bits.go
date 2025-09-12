@@ -22,18 +22,18 @@ func GetBits(b byte, start, count int) byte {
 }
 
 // For 8-bit signed numbers
-func ToSigned8(bits byte) int {
+func ToSigned8(bits byte) int16 {
 	if bits&0x80 != 0 { // Check if MSB is set
-		return int(int8(bits)) // Convert to signed 8-bit
+		return int16(int8(bits)) // Convert to signed 8-bit
 	}
-	return int(bits)
+	return int16(bits)
 }
 
 // For 16-bit signed numbers
-func ToSigned16(low, high byte) int {
+func ToSigned16(low, high byte) int16 {
 	value := uint16(low) | (uint16(high) << 8)
 	if value&0x8000 != 0 { // Check if MSB is set
-		return int(int16(value)) // Convert to signed 16-bit
+		return int16(value) // Convert to signed 16-bit
 	}
-	return int(value)
+	return int16(value)
 }
