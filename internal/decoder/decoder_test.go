@@ -143,7 +143,7 @@ func TestDecoderListing41(t *testing.T) {
 		"sub [bp + di + 6], di",
 		"sub byte [bx], 34",
 		"sub word [bx + di], 29",
-		// "sub ax, [bp + 0]", // TODO: fix this, it's missing
+		"sub ax, [bp + 0]",
 		"sub al, [bx + si]",
 		"sub ax, bx",
 		"sub al, ah",
@@ -166,7 +166,7 @@ func TestDecoderListing41(t *testing.T) {
 		"cmp [bp + si + 4], bh",
 		"cmp [bp + di + 6], di",
 		"cmp byte [bx], 34",
-		"cmp word [bp + 4834], 29", // TODO: fix this, should be [4834]
+		"cmp word [bp + 4834], 29", // TODO: fix this, should be cmp word [4834], 29
 		"cmp ax, [bp + 0]",
 		"cmp al, [bx + si]",
 		"cmp ax, bx",

@@ -37,6 +37,7 @@ func (d *Decoder) Decode(data []byte) ([]*instruction.Instruction, error) {
 			ins.DestDisplacement = p.GetDestDisplacement(data, i, ins)
 			ins.Immediate = p.GetImmediate(data, i, ins)
 			ins.SourceAddr = p.GetSorceAddr(data, i, ins)
+			ins.DestAddr = p.GetDestAddr(data, i, ins)
 			ins.Text = p.GetText(p, ins)
 			instructions = append(instructions, ins)
 			i += p.GetBytesCount(p, ins)
