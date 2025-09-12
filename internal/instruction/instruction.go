@@ -395,27 +395,26 @@ var Table = []*Pattern{
 		p.OpCode = 0b100000
 		p.OperandType = OpTypeImmToReg
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
-			defaultInc := 2
-			if ins.WBit && ins.SBit {
-				defaultInc += 1
+			inc := 3
+			if ins.WBit && !ins.SBit {
+				inc += 1
 			}
 			switch ins.Mod {
 			case 0b00:
 				if ins.RM == 0b110 {
-					defaultInc += 2
-				} else if ins.Immediate != 0 {
-					if ins.WBit && ins.SBit {
-						defaultInc += 3
-					} else {
-						defaultInc++
-					}
+					inc += 2
 				}
+
+			case 0b11:
+				inc += 0
 			case 0b01:
-				defaultInc += 1
+				inc += 3
 			case 0b10:
-				defaultInc += 2
+				inc += 2
+			default:
+				return 0
 			}
-			return defaultInc
+			return inc
 		}
 		p.GetOpCode = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 2, 6) }
 		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 0) }
