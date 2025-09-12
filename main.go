@@ -32,6 +32,9 @@ func main() {
 	if len(argsWithoutProg) > 1 && argsWithoutProg[1] == ExecMode {
 		sim := simulator.NewSimulator()
 		sim.Init()
-		sim.Run(instructions)
+		_, err := sim.Run(instructions)
+		if err != nil {
+			log.Fatalf("Error running instructions: %v", err)
+		}
 	}
 }
