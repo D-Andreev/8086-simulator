@@ -21,7 +21,7 @@ func GetBits(b byte, start, count int) byte {
 	return (b >> start) & mask
 }
 
-// For 8-bit signed numbers
+// ToSigned8 converts a byte to a signed 8-bit number.
 func ToSigned8(bits byte) int16 {
 	if bits&0x80 != 0 { // Check if MSB is set
 		return int16(int8(bits)) // Convert to signed 8-bit
@@ -29,11 +29,21 @@ func ToSigned8(bits byte) int16 {
 	return int16(bits)
 }
 
-// For 16-bit signed numbers
+// ToSigned16 converts two bytes to a signed 16-bit number.
 func ToSigned16(low, high byte) int16 {
 	value := uint16(low) | (uint16(high) << 8)
 	if value&0x8000 != 0 { // Check if MSB is set
 		return int16(value) // Convert to signed 16-bit
 	}
 	return int16(value)
+}
+
+// ToUnsigned16 converts two bytes to an unsigned 16-bit number.
+func ToUnsigned16(low, high byte) uint16 {
+	return uint16(low) | (uint16(high) << 8)
+}
+
+// ToUnsigned8 converts a byte to an unsigned 8-bit number.
+func ToUnsigned8(bits byte) uint16 {
+	return uint16(bits)
 }

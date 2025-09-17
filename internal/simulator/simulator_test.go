@@ -25,7 +25,7 @@ func TestSimulatorListing43(t *testing.T) {
 		"mov si, 7 ; si:0x0->0x7",
 		"mov di, 8 ; di:0x0->0x8",
 	}
-	expectedRegisters := map[string]int16{
+	expectedRegisters := map[string]int{
 		"ax": 1,
 		"bx": 2,
 		"cx": 3,
@@ -80,7 +80,7 @@ func TestSimulatorListing44(t *testing.T) {
 		"mov bx, si ; bx:0x2->0x3",
 		"mov ax, di ; ax:0x1->0x4",
 	}
-	expectedRegisters := map[string]int16{
+	expectedRegisters := map[string]int{
 		"ax": 4,
 		"bx": 3,
 		"cx": 2,
@@ -108,6 +108,57 @@ func TestSimulatorListing44(t *testing.T) {
 
 	for register, value := range sim.Registers {
 		if value != expectedRegisters[register] {
+			t.Fatalf("Expected register %s to be %d but got %d", register, expectedRegisters[register], value)
+		}
+	}
+}
+
+func TestSimulatorListing46(t *testing.T) {
+	content, err := os.ReadFile("../../listings/listing_0046_add_sub_cmp")
+	if err != nil {
+		t.Fatalf("Error reading file: %v", err)
+	}
+	decoder := decoder.NewDecoder()
+	sim := NewSimulator()
+	sim.Init()
+	expectedLogs := []string{
+		"mov bx, 61443 ; bx:0x0->0xf003",
+		"mov cx, 3841 ; cx:0x0->0xf01",
+		"sub bx, cx ; bx:0xf003->0xe102 flags:->S",
+		"mov sp, 998 ; sp:0x0->0x3e6",
+		"mov bp, 999 ; bp:0x0->0x3e7",
+		"cmp bp, sp ; flags:S->",
+		"add bp, 1027 ; bp:0x3e7->0x7ea",
+		"sub bp, 2026 ; bp:0x7ea->0x0 flags:->PZ",
+	}
+	expectedRegisters := map[string]int{
+		"ax": 0,
+		"bx": 57602,
+		"cx": 3841,
+		"dx": 0,
+		"sp": 998,
+		"bp": 0,
+		"si": 0,
+		"di": 0,
+	}
+
+	instructions, err := decoder.Decode(content)
+	if err != nil {
+		t.Fatalf("Error decoding data: %v", err)
+	}
+	results, err := sim.Run(instructions)
+	if err != nil {
+		t.Fatalf("Error running instructions: %v", err)
+	}
+
+	for i, result := range results {
+		if result.Text != expectedLogs[i] {
+			t.Fatalf("Expected instruction %s but got %s", expectedLogs[i], result.Text)
+		}
+	}
+
+	for register, value := range sim.Registers {
+		if int(value) != expectedRegisters[register] {
 			t.Fatalf("Expected register %s to be %d but got %d", register, expectedRegisters[register], value)
 		}
 	}
