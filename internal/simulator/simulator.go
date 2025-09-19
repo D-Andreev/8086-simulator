@@ -29,14 +29,14 @@ func NewSimulator() *Simulator {
 func (s *Simulator) Init() {
 	s.registerOrder = []string{"ax", "bx", "cx", "dx", "sp", "bp", "si", "di"}
 	s.Registers = map[string][]byte{
-		"ax": {0},
-		"bx": {0},
-		"cx": {0},
-		"dx": {0},
-		"sp": {0},
-		"bp": {0},
-		"si": {0},
-		"di": {0},
+		"ax": {0, 0},
+		"bx": {0, 0},
+		"cx": {0, 0},
+		"dx": {0, 0},
+		"sp": {0, 0},
+		"bp": {0, 0},
+		"si": {0, 0},
+		"di": {0, 0},
 	}
 	s.flags = map[string]bool{
 		"Z": false,
@@ -92,39 +92,85 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 			switch ins.OperandType {
 			case instruction.OpTypeImmToReg:
 				destPrevVal := s.Registers[ins.DestRegister]
-				s.Registers[ins.DestRegister] = ins.Immediate.Raw
-				flagsPrevVal := s.printFlags()
-				s.flags["Z"] = bits.IsZero(s.Registers[ins.DestRegister])
-				s.flags["S"] = bits.IsNegative(s.Registers[ins.DestRegister])
+				s.Registers[ins.DestRegister] = s.doArithmeticOp(ins, destPrevVal, ins.Immediate.Raw, ins.DestRegister)
 				flagsNewVal := s.printFlags()
-				if flagsPrevVal != flagsNewVal {
+				if flagsNewVal != "" {
 					results = append(
 						results,
-						&Result{Text: fmt.Sprintf("%s ; %s:0x%x->0x%x %s", ins.Text, ins.DestRegister, s.printImmediateValue(destPrevVal), s.printImmediateValue(ins.Immediate.Raw), flagsNewVal)},
+						&Result{
+							Text: fmt.Sprintf(
+								"%s ; %s:0x%x->0x%x flags:->%s",
+								ins.Text,
+								ins.DestRegister,
+								s.printImmediateValue(destPrevVal),
+								s.printImmediateValue(s.Registers[ins.DestRegister]),
+								flagsNewVal,
+							),
+						},
 					)
-					break
+				} else {
+					results = append(
+						results,
+						&Result{
+							Text: fmt.Sprintf(
+								"%s ; %s:0x%x->0x%x",
+								ins.Text,
+								ins.DestRegister,
+								s.printImmediateValue(destPrevVal),
+								s.printImmediateValue(s.Registers[ins.DestRegister]),
+							),
+						},
+					)
 				}
-				results = append(
-					results,
-					&Result{Text: fmt.Sprintf("%s ; %s:0x%x->0x%x", ins.Text, ins.DestRegister, s.printImmediateValue(destPrevVal), s.printImmediateValue(ins.Immediate.Raw))},
-				)
 			case instruction.OpTypeRegMemToFromReg:
 				destPrevVal := s.Registers[ins.DestRegister]
 				sourceVal := s.Registers[ins.SourceRegister]
-				s.Registers[ins.DestRegister] = s.doArithmetic(ins, destPrevVal, sourceVal, ins.DestRegister)
 				flagsPrevVal := s.printFlags()
+				result := s.doArithmeticOp(ins, destPrevVal, sourceVal, ins.DestRegister)
 				flagsNewVal := s.printFlags()
-				if flagsPrevVal != flagsNewVal {
-					results = append(
-						results,
-						&Result{Text: fmt.Sprintf("%s ; %s:0x%x->0x%x %s", ins.Text, ins.DestRegister, s.printImmediateValue(destPrevVal), s.printImmediateValue(sourceVal), flagsNewVal)},
-					)
-					break
+				if ins.Op == instruction.CMP {
+					// CMP doesn't modify the destination register
+					if flagsPrevVal != flagsNewVal {
+						results = append(
+							results,
+							&Result{Text: fmt.Sprintf("%s ; flags:%s->%s", ins.Text, flagsPrevVal, flagsNewVal)},
+						)
+					} else {
+						results = append(
+							results,
+							&Result{Text: fmt.Sprintf("%s ; flags:%s->%s", ins.Text, flagsPrevVal, flagsNewVal)},
+						)
+					}
+				} else {
+					if flagsNewVal != "" {
+						results = append(
+							results,
+							&Result{
+								Text: fmt.Sprintf(
+									"%s ; %s:0x%x->0x%x flags:->%s",
+									ins.Text,
+									ins.DestRegister,
+									s.printImmediateValue(destPrevVal),
+									s.printImmediateValue(result),
+									flagsNewVal,
+								),
+							},
+						)
+					} else {
+						results = append(
+							results,
+							&Result{
+								Text: fmt.Sprintf(
+									"%s ; %s:0x%x->0x%x",
+									ins.Text,
+									ins.DestRegister,
+									s.printImmediateValue(destPrevVal),
+									s.printImmediateValue(result),
+								),
+							},
+						)
+					}
 				}
-				results = append(
-					results,
-					&Result{Text: fmt.Sprintf("%s ; %s:0x%x->0x%x", ins.Text, ins.DestRegister, s.printImmediateValue(destPrevVal), s.printImmediateValue(sourceVal))},
-				)
 			default:
 				return nil, fmt.Errorf("unsupported operand type: %d", ins.OperandType)
 			}
@@ -136,38 +182,33 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 	return results, nil
 }
 
-func (s *Simulator) doArithmetic(ins *instruction.Instruction, destPrevVal []byte, sourceVal []byte, destRegister string) []byte {
+func (s *Simulator) doArithmeticOp(ins *instruction.Instruction, destPrevVal []byte, sourceVal []byte, destRegister string) []byte {
 	switch ins.Op {
 	case instruction.ADD:
-		s.Registers[destRegister] = bits.Add(sourceVal, destPrevVal)
+		s.Registers[destRegister] = bits.Add(destPrevVal, sourceVal)
 		s.flags["Z"] = bits.IsZero(s.Registers[destRegister])
 		s.flags["S"] = bits.IsNegative(s.Registers[destRegister])
 		return s.Registers[destRegister]
 	case instruction.SUB:
-		s.Registers[destRegister] = bits.Sub(sourceVal, destPrevVal)
+		s.Registers[destRegister] = bits.Sub(destPrevVal, sourceVal)
 		s.flags["Z"] = bits.IsZero(s.Registers[destRegister])
 		s.flags["S"] = bits.IsNegative(s.Registers[destRegister])
 		return s.Registers[destRegister]
 	case instruction.CMP:
-		res := bits.Sub(sourceVal, destPrevVal)
+		res := bits.Sub(destPrevVal, sourceVal)
 		s.flags["Z"] = bits.IsZero(res)
 		s.flags["S"] = bits.IsNegative(res)
-		return res
+		return destPrevVal // CMP doesn't modify the destination register
 	}
 	return nil
 }
 
 func (s *Simulator) printFlags() string {
-	if len(s.flags) == 0 {
-		return ""
-	}
-
-	flags := "flags:->"
+	flags := ""
 	for _, flag := range s.flagOrder {
 		if s.flags[flag] {
-			flags += fmt.Sprintf("%s ", flag)
+			flags += flag
 		}
 	}
-	flags += "\n"
 	return flags
 }

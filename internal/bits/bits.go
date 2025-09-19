@@ -66,12 +66,18 @@ func IsNegative(bits []byte) bool {
 	return bits[0]&0x80 != 0 // Check low byte for 8-bit values
 }
 
-// Add adds two bytes.
+// Add adds two 16-bit values represented as byte arrays.
 func Add(a, b []byte) []byte {
-	return []byte{a[0] + b[0], a[1] + b[1]}
+	valA := ToUnsigned16(a[0], a[1])
+	valB := ToUnsigned16(b[0], b[1])
+	result := valA + valB
+	return []byte{byte(result & 0xFF), byte((result >> 8) & 0xFF)}
 }
 
-// Sub subtracts two bytes.
+// Sub subtracts two 16-bit values represented as byte arrays.
 func Sub(a, b []byte) []byte {
-	return []byte{a[0] - b[0], a[1] - b[1]}
+	valA := ToUnsigned16(a[0], a[1])
+	valB := ToUnsigned16(b[0], b[1])
+	result := valA - valB
+	return []byte{byte(result & 0xFF), byte((result >> 8) & 0xFF)}
 }
