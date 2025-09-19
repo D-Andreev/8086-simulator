@@ -47,3 +47,31 @@ func ToUnsigned16(low, high byte) uint16 {
 func ToUnsigned8(bits byte) uint16 {
 	return uint16(bits)
 }
+
+// IsZero checks if all bits are zero.
+func IsZero(bits []byte) bool {
+	for _, bit := range bits {
+		if bit != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// IsNegative checks if the most significant bit is set.
+func IsNegative(bits []byte) bool {
+	if len(bits) == 2 {
+		return bits[1]&0x80 != 0 // Check high byte for 16-bit values
+	}
+	return bits[0]&0x80 != 0 // Check low byte for 8-bit values
+}
+
+// Add adds two bytes.
+func Add(a, b []byte) []byte {
+	return []byte{a[0] + b[0], a[1] + b[1]}
+}
+
+// Sub subtracts two bytes.
+func Sub(a, b []byte) []byte {
+	return []byte{a[0] - b[0], a[1] - b[1]}
+}

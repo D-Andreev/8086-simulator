@@ -25,15 +25,15 @@ func TestSimulatorListing43(t *testing.T) {
 		"mov si, 7 ; si:0x0->0x7",
 		"mov di, 8 ; di:0x0->0x8",
 	}
-	expectedRegisters := map[string]int{
-		"ax": 1,
-		"bx": 2,
-		"cx": 3,
-		"dx": 4,
-		"sp": 5,
-		"bp": 6,
-		"si": 7,
-		"di": 8,
+	expectedRegisters := map[string][]byte{
+		"ax": {0x1, 0x0},
+		"bx": {0x2, 0x0},
+		"cx": {0x3, 0x0},
+		"dx": {0x4, 0x0},
+		"sp": {0x5, 0x0},
+		"bp": {0x6, 0x0},
+		"si": {0x7, 0x0},
+		"di": {0x8, 0x0},
 	}
 
 	instructions, err := decoder.Decode(content)
@@ -52,10 +52,23 @@ func TestSimulatorListing43(t *testing.T) {
 	}
 
 	for register, value := range sim.Registers {
-		if value != expectedRegisters[register] {
-			t.Fatalf("Expected register %s to be %d but got %d", register, expectedRegisters[register], value)
+		if !registerValueEquals(t, value, expectedRegisters[register]) {
+			t.Fatalf("Expected register %s to be 0x%x but got 0x%x", register, expectedRegisters[register], value)
 		}
 	}
+}
+
+func registerValueEquals(t *testing.T, value []byte, expected []byte) bool {
+	t.Helper()
+	if len(value) != len(expected) {
+		return false
+	}
+	for i, v := range value {
+		if v != expected[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestSimulatorListing44(t *testing.T) {
@@ -80,15 +93,15 @@ func TestSimulatorListing44(t *testing.T) {
 		"mov bx, si ; bx:0x2->0x3",
 		"mov ax, di ; ax:0x1->0x4",
 	}
-	expectedRegisters := map[string]int{
-		"ax": 4,
-		"bx": 3,
-		"cx": 2,
-		"dx": 1,
-		"sp": 1,
-		"bp": 2,
-		"si": 3,
-		"di": 4,
+	expectedRegisters := map[string][]byte{
+		"ax": {0x4, 0x0},
+		"bx": {0x3, 0x0},
+		"cx": {0x2, 0x0},
+		"dx": {0x1, 0x0},
+		"sp": {0x1, 0x0},
+		"bp": {0x2, 0x0},
+		"si": {0x3, 0x0},
+		"di": {0x4, 0x0},
 	}
 
 	instructions, err := decoder.Decode(content)
@@ -107,7 +120,7 @@ func TestSimulatorListing44(t *testing.T) {
 	}
 
 	for register, value := range sim.Registers {
-		if value != expectedRegisters[register] {
+		if !registerValueEquals(t, value, expectedRegisters[register]) {
 			t.Fatalf("Expected register %s to be %d but got %d", register, expectedRegisters[register], value)
 		}
 	}
@@ -129,17 +142,17 @@ func TestSimulatorListing46(t *testing.T) {
 		"mov bp, 999 ; bp:0x0->0x3e7",
 		"cmp bp, sp ; flags:S->",
 		"add bp, 1027 ; bp:0x3e7->0x7ea",
-		"sub bp, 2026 ; bp:0x7ea->0x0 flags:->PZ",
+		"sub bp, 2026 ; bp:0x7ea->0x0 flags:->Z",
 	}
-	expectedRegisters := map[string]int{
-		"ax": 0,
-		"bx": 57602,
-		"cx": 3841,
-		"dx": 0,
-		"sp": 998,
-		"bp": 0,
-		"si": 0,
-		"di": 0,
+	expectedRegisters := map[string][]byte{
+		"ax": {0x0, 0x0},
+		"bx": {0x12, 0xe1}, // 57602 = 0xe112
+		"cx": {0x01, 0x0f}, // 3841 = 0x0f01
+		"dx": {0x0, 0x0},
+		"sp": {0xe6, 0x03}, // 998 = 0x03e6
+		"bp": {0x0, 0x0},
+		"si": {0x0, 0x0},
+		"di": {0x0, 0x0},
 	}
 
 	instructions, err := decoder.Decode(content)
@@ -158,7 +171,7 @@ func TestSimulatorListing46(t *testing.T) {
 	}
 
 	for register, value := range sim.Registers {
-		if int(value) != expectedRegisters[register] {
+		if !registerValueEquals(t, value, expectedRegisters[register]) {
 			t.Fatalf("Expected register %s to be %d but got %d", register, expectedRegisters[register], value)
 		}
 	}
