@@ -95,6 +95,12 @@ var effectiveAddrEnc = map[byte]map[byte]string{
 	},
 }
 
+type ImmediateData struct {
+	Raw      []byte
+	Value    int
+	IsSigned bool
+}
+
 type Instruction struct {
 	Op                 Op
 	OperandType        OperandType
@@ -107,7 +113,7 @@ type Instruction struct {
 	DestRegister       string
 	SourceRegister     string
 	Text               string
-	Immediate          int16
+	Immediate          *ImmediateData
 	SourceAddr         string
 	DestAddr           string
 	SourceDisplacement []byte
@@ -215,7 +221,7 @@ type Pattern struct {
 	GetDestRegister       func(ins *Instruction) string
 	GetSourceRegister     func(ins *Instruction) string
 	GetText               func(p *Pattern, ins *Instruction) string
-	GetImmediate          func(instructions []byte, i int, ins *Instruction) int16
+	GetImmediate          func(instructions []byte, i int, ins *Instruction) *ImmediateData
 	GetSorceAddr          func(instructions []byte, i int, ins *Instruction) string
 	GetDestAddr           func(instructions []byte, i int, ins *Instruction) string
 	GetSourceDisplacement func(instructions []byte, i int, ins *Instruction) []byte
@@ -236,11 +242,33 @@ func NewPattern() *Pattern {
 		GetDestRegister:   func(ins *Instruction) string { return ins.GetDestReg() },
 		GetSourceRegister: func(ins *Instruction) string { return ins.GetSourceReg() },
 		GetText:           func(p *Pattern, ins *Instruction) string { return ins.GetText(p) },
-		GetImmediate: func(instructions []byte, i int, ins *Instruction) int16 {
+		GetImmediate: func(instructions []byte, i int, ins *Instruction) *ImmediateData {
 			if ins.WBit {
-				return bits.ToSigned16(instructions[i+1], instructions[i+2])
+				if ins.SBit {
+					return &ImmediateData{
+						Raw:      []byte{instructions[i+1], instructions[i+2]},
+						Value:    int(bits.ToSigned16(instructions[i+1], instructions[i+2])),
+						IsSigned: true,
+					}
+				}
+				return &ImmediateData{
+					Raw:      []byte{instructions[i+1], instructions[i+2]},
+					Value:    int(bits.ToUnsigned16(instructions[i+1], instructions[i+2])),
+					IsSigned: false,
+				}
 			}
-			return bits.ToSigned8(instructions[i+1])
+			if ins.SBit {
+				return &ImmediateData{
+					Raw:      []byte{instructions[i+1]},
+					Value:    int(bits.ToSigned8(instructions[i+1])),
+					IsSigned: true,
+				}
+			}
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToUnsigned8(instructions[i+1])),
+				IsSigned: false,
+			}
 		},
 		GetSorceAddr: func(_ []byte, _ int, ins *Instruction) string {
 			if ins.Mod == 0b11 {
@@ -285,7 +313,7 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return ins.GetFromToRegMemInstrByteCount()
 		}
-		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) int16 { return 0 }
+		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) *ImmediateData { return nil }
 		p.GetOpCode = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 2, 6) }
 		p.GetDBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 1) }
 		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 0) }
@@ -310,7 +338,21 @@ var Table = []*Pattern{
 		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 3) }
 		p.GetReg = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 0, 3) }
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %s, %d", p.Op, ins.DestRegister, ins.Immediate)
+			return fmt.Sprintf("%s %s, %d", p.Op, ins.DestRegister, ins.Immediate.Value)
+		}
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			if ins.WBit {
+				return &ImmediateData{
+					Raw:      []byte{instructions[i+1], instructions[i+2]},
+					Value:    int(bits.ToSigned16(instructions[i+1], instructions[i+2])),
+					IsSigned: true,
+				}
+			}
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		return p
 	}(),
@@ -322,7 +364,7 @@ var Table = []*Pattern{
 		p.OpCode = 0b000000
 		p.Op = ADD
 		p.OperandType = OpTypeRegMemToFromReg
-		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) int16 { return 0 }
+		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) *ImmediateData { return nil }
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return ins.GetFromToRegMemInstrByteCount()
 		}
@@ -348,7 +390,21 @@ var Table = []*Pattern{
 		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 0) }
 		p.GetReg = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 0, 3) }
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %s, %d", p.Op, ins.DestRegister, ins.Immediate)
+			return fmt.Sprintf("%s %s, %d", p.Op, ins.DestRegister, ins.Immediate.Value)
+		}
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			if ins.WBit {
+				return &ImmediateData{
+					Raw:      []byte{instructions[i+1], instructions[i+2]},
+					Value:    int(bits.ToSigned16(instructions[i+1], instructions[i+2])),
+					IsSigned: true,
+				}
+			}
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		return p
 	}(),
@@ -360,7 +416,7 @@ var Table = []*Pattern{
 		p.OpCode = 0b001010
 		p.Op = SUB
 		p.OperandType = OpTypeRegMemToFromReg
-		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) int16 { return 0 }
+		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) *ImmediateData { return nil }
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return ins.GetFromToRegMemInstrByteCount()
 		}
@@ -385,7 +441,21 @@ var Table = []*Pattern{
 		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 0) }
 		p.GetReg = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 0, 3) }
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %s, %d", p.Op, ins.DestRegister, ins.Immediate)
+			return fmt.Sprintf("%s %s, %d", p.Op, ins.DestRegister, ins.Immediate.Value)
+		}
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			if ins.WBit {
+				return &ImmediateData{
+					Raw:      []byte{instructions[i+1], instructions[i+2]},
+					Value:    int(bits.ToSigned16(instructions[i+1], instructions[i+2])),
+					IsSigned: true,
+				}
+			}
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		return p
 	}(),
@@ -432,7 +502,7 @@ var Table = []*Pattern{
 				ins.DestDisplacement = tmpDisp
 			}
 
-			source := fmt.Sprintf("%d", ins.Immediate)
+			source := fmt.Sprintf("%d", ins.Immediate.Value)
 			dest := ins.formatOperand(ins.DestAddr, ins.DestDisplacement, ins.DestRegister)
 			insType := "byte"
 			if ins.WBit {
@@ -440,13 +510,14 @@ var Table = []*Pattern{
 			}
 
 			op := regOpCodeEnc[ins.Reg]
+			ins.Op = regOpCodeEnc[ins.Reg]
 			if ins.Mod == 0b11 {
 				return fmt.Sprintf("%s %s, %s", op, dest, source)
 			}
 
 			return fmt.Sprintf("%s %s %s, %s", op, insType, dest, source)
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
 			idx := 0
 			switch ins.Mod {
 			case 0b00:
@@ -463,7 +534,26 @@ var Table = []*Pattern{
 				idx = i + 2
 			}
 
-			return bits.ToSigned8(instructions[idx])
+			if ins.WBit && !ins.SBit {
+				return &ImmediateData{
+					Raw:      []byte{instructions[idx], instructions[idx+1]},
+					Value:    int(bits.ToUnsigned16(instructions[idx], instructions[idx+1])),
+					IsSigned: false,
+				}
+			}
+
+			if ins.SBit {
+				return &ImmediateData{
+					Raw:      []byte{instructions[idx]},
+					Value:    int(bits.ToSigned8(instructions[idx])),
+					IsSigned: true,
+				}
+			}
+			return &ImmediateData{
+				Raw:      []byte{instructions[idx]},
+				Value:    int(bits.ToUnsigned8(instructions[idx])),
+				IsSigned: false,
+			}
 		}
 
 		return p
@@ -475,7 +565,7 @@ var Table = []*Pattern{
 		p.OpCode = 0b001110
 		p.Op = CMP
 		p.OperandType = OpTypeRegMemToFromReg
-		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) int16 { return 0 }
+		p.GetImmediate = func(_ []byte, _ int, _ *Instruction) *ImmediateData { return nil }
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return ins.GetFromToRegMemInstrByteCount()
 		}
@@ -500,7 +590,21 @@ var Table = []*Pattern{
 		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 0) }
 		p.GetReg = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 0, 3) }
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %s, %d", p.Op, ins.DestRegister, ins.Immediate)
+			return fmt.Sprintf("%s %s, %d", p.Op, ins.DestRegister, ins.Immediate.Value)
+		}
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			if ins.WBit {
+				return &ImmediateData{
+					Raw:      []byte{instructions[i+1], instructions[i+2]},
+					Value:    int(bits.ToSigned16(instructions[i+1], instructions[i+2])),
+					IsSigned: true,
+				}
+			}
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		return p
 	}(),
@@ -515,11 +619,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -533,11 +641,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -551,11 +663,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -569,11 +685,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -587,11 +707,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -605,11 +729,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -623,11 +751,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -641,11 +773,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -659,11 +795,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -677,11 +817,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -695,11 +839,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -713,11 +861,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -731,11 +883,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -749,11 +905,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -767,11 +927,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -785,11 +949,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -803,11 +971,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -821,11 +993,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -839,11 +1015,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -857,11 +1037,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
@@ -875,11 +1059,15 @@ var Table = []*Pattern{
 		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
 			return 2
 		}
-		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) int16 {
-			return bits.ToSigned8(instructions[i+1])
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			return &ImmediateData{
+				Raw:      []byte{instructions[i+1]},
+				Value:    int(bits.ToSigned8(instructions[i+1])),
+				IsSigned: true,
+			}
 		}
 		p.GetText = func(p *Pattern, ins *Instruction) string {
-			return fmt.Sprintf("%s %d", p.Op, ins.Immediate)
+			return fmt.Sprintf("%s %d", p.Op, ins.Immediate.Value)
 		}
 		return p
 	}(),
