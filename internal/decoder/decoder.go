@@ -41,6 +41,7 @@ func (d *Decoder) Decode(data []byte) ([]*instruction.Instruction, error) {
 			ins.Text = p.GetText(p, ins)
 			instructions = append(instructions, ins)
 			i += p.GetBytesCount(p, ins)
+			ins.IPRegister = i
 			break
 		}
 

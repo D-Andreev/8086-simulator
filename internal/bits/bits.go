@@ -1,5 +1,7 @@
 package bits
 
+import "encoding/binary"
+
 // GetBit returns the value of the bit at the given index.
 func GetBit(b byte, index int) bool {
 	if index < 0 || index > 7 {
@@ -80,4 +82,11 @@ func Sub(a, b []byte) []byte {
 	valB := ToUnsigned16(b[0], b[1])
 	result := valA - valB
 	return []byte{byte(result & 0xFF), byte((result >> 8) & 0xFF)}
+}
+
+// Uint16ToBytes converts a uint16 to a byte array.
+func Uint16ToBytes(decimal uint16) []byte {
+	byteArray := make([]byte, 2)
+	binary.LittleEndian.PutUint16(byteArray, decimal)
+	return byteArray
 }

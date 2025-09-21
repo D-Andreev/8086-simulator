@@ -30,7 +30,7 @@ func main() {
 	}
 
 	if len(argsWithoutProg) > 1 && argsWithoutProg[1] == ExecMode {
-		sim := simulator.NewSimulator()
+		sim := simulator.NewSimulator(false)
 		sim.Init()
 		_, err := sim.Run(instructions)
 		if err != nil {
