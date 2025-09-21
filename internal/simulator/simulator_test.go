@@ -239,3 +239,76 @@ func TestSimulatorListing48(t *testing.T) {
 		}
 	}
 }
+
+func TestSimulatorListing49(t *testing.T) {
+	content, err := os.ReadFile("../../listings/listing_0049_conditional_jumps")
+	if err != nil {
+		t.Fatalf("Error reading file: %v", err)
+	}
+	decoder := decoder.NewDecoder()
+	sim := NewSimulator(true)
+	sim.Init()
+	expectedLogs := []string{
+		"mov cx, 3 ; cx:0x0->0x3 ip:0x0->0x3",
+		"mov bx, 1000 ; bx:0x0->0x3e8 ip:0x3->0x6",
+		"add bx, 10 ; bx:0x3e8->0x3f2 ip:0x6->0x9",
+		"sub cx, 1 ; cx:0x3->0x2 ip:0x9->0xc",
+		"jne $-6 ; ip:0xc->0x6",
+		"add bx, 10 ; bx:0x3f2->0x3fc ip:0x6->0x9",
+		"sub cx, 1 ; cx:0x2->0x1 ip:0x9->0xc",
+		"jne $-6 ; ip:0xc->0x6",
+		"add bx, 10 ; bx:0x3fc->0x406 ip:0x6->0x9",
+		"sub cx, 1 ; cx:0x1->0x0 ip:0x9->0xc flags:->Z",
+		"jne $-6 ; ip:0xc->0xe",
+	}
+	expectedRegisters := map[string][]byte{
+		"ax": bits.Uint16ToBytes(0),
+		"bx": bits.Uint16ToBytes(1030),
+		"cx": bits.Uint16ToBytes(0),
+		"dx": bits.Uint16ToBytes(0),
+		"sp": bits.Uint16ToBytes(0),
+		"bp": bits.Uint16ToBytes(0),
+		"si": bits.Uint16ToBytes(0),
+		"di": bits.Uint16ToBytes(0),
+		"ip": bits.Uint16ToBytes(14),
+	}
+	expectedFlags := map[string]bool{
+		"Z": true,
+		"S": false,
+	}
+
+	instructions, err := decoder.Decode(content)
+	if err != nil {
+		t.Fatalf("Error decoding data: %v", err)
+	}
+	results, err := sim.Run(instructions)
+	if err != nil {
+		t.Fatalf("Error running instructions: %v", err)
+	}
+
+	for i, result := range results {
+		if result.Text != expectedLogs[i] {
+			t.Fatalf("\nExpected instruction: %s\n                 Got: %s",
+				expectedLogs[i],
+				result.Text)
+		}
+	}
+
+	for register, value := range sim.Registers {
+		if !registerValueEquals(t, value, expectedRegisters[register]) {
+			t.Fatalf("\nRegister %s:\n     Expected: %d\n          Got: %d",
+				register,
+				expectedRegisters[register],
+				value)
+		}
+	}
+
+	for flag, value := range sim.flags {
+		if value != expectedFlags[flag] {
+			t.Fatalf("\nFlag %s:\n     Expected: %t\n          Got: %t",
+				flag,
+				expectedFlags[flag],
+				value)
+		}
+	}
+}

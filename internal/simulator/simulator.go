@@ -58,19 +58,24 @@ func (s *Simulator) printImmediateValue(rawData []byte) uint16 {
 	return bits.ToUnsigned8(rawData[0])
 }
 
-func (s *Simulator) updateIPRegister(ins *instruction.Instruction) string {
+func (s *Simulator) updateIPRegister(ipRegVal int) string {
 	if !s.printIPRegister {
 		return ""
 	}
 	ipPrevVal := make([]byte, len(s.Registers["ip"]))
 	copy(ipPrevVal, s.Registers["ip"])
-	binary.LittleEndian.PutUint16(s.Registers["ip"], uint16(ins.IPRegister))
+	binary.LittleEndian.PutUint16(s.Registers["ip"], uint16(ipRegVal))
 
 	ipPrevValUint16 := binary.LittleEndian.Uint16(ipPrevVal)
-	return fmt.Sprintf(" ip:0x%x->0x%x", ipPrevValUint16, ins.IPRegister)
+	return fmt.Sprintf(" ip:0x%x->0x%x", ipPrevValUint16, ipRegVal)
 }
 
 func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, error) {
+	ipIdxMap := make(map[int]int)
+	for i, ins := range instructions {
+		ipIdxMap[ins.IPRegister] = i
+	}
+
 	results := []*Result{}
 	i := 0
 	for i < len(instructions) {
@@ -81,7 +86,7 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 			case instruction.OpTypeImmToReg:
 				destPrevVal := s.Registers[ins.DestRegister]
 				s.Registers[ins.DestRegister] = ins.Immediate.Raw
-				ipLog := s.updateIPRegister(ins)
+				ipLog := s.updateIPRegister(ins.IPRegister)
 				results = append(
 					results,
 					&Result{
@@ -101,7 +106,7 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 				destPrevVal := s.Registers[ins.DestRegister]
 				sourceVal := s.Registers[ins.SourceRegister]
 				s.Registers[ins.DestRegister] = sourceVal
-				ipLog := s.updateIPRegister(ins)
+				ipLog := s.updateIPRegister(ins.IPRegister)
 				results = append(
 					results,
 					&Result{Text: fmt.Sprintf("%s ; %s:0x%x->0x%x%s", ins.Text, ins.DestRegister, destPrevVal[0], sourceVal[0], ipLog)},
@@ -114,7 +119,7 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 			case instruction.OpTypeImmToReg:
 				destPrevVal := s.Registers[ins.DestRegister]
 				s.Registers[ins.DestRegister] = s.doArithmeticOp(ins, destPrevVal, ins.Immediate.Raw, ins.DestRegister)
-				ipLog := s.updateIPRegister(ins)
+				ipLog := s.updateIPRegister(ins.IPRegister)
 				flagsNewVal := s.printFlags()
 				if flagsNewVal != "" {
 					results = append(
@@ -151,7 +156,7 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 				sourceVal := s.Registers[ins.SourceRegister]
 				flagsPrevVal := s.printFlags()
 				result := s.doArithmeticOp(ins, destPrevVal, sourceVal, ins.DestRegister)
-				ipLog := s.updateIPRegister(ins)
+				ipLog := s.updateIPRegister(ins.IPRegister)
 				flagsNewVal := s.printFlags()
 				if ins.Op == instruction.CMP {
 					// CMP doesn't modify the destination register
@@ -201,10 +206,30 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 			default:
 				return nil, fmt.Errorf("unsupported operand type: %d", ins.OperandType)
 			}
+		case instruction.JNZ:
+			if !s.flags["Z"] {
+				updatedIPRegister := ins.IPRegister + ins.Immediate.Value
+				i = ipIdxMap[updatedIPRegister]
+				i++
+				ipLog := s.updateIPRegister(updatedIPRegister)
+				results = append(
+					results,
+					&Result{
+						Text: fmt.Sprintf(
+							"jne $-%d ;%s",
+							updatedIPRegister,
+							ipLog,
+						),
+					})
+				continue
+			} else {
+				s.Registers["ip"] = bits.Uint16ToBytes(uint16(ins.IPRegister))
+			}
 		default:
 			return nil, fmt.Errorf("unsupported instruction: %s", ins.Op)
 		}
 		i++
+
 	}
 
 	return results, nil

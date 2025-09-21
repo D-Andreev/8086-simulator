@@ -68,19 +68,43 @@ func IsNegative(bits []byte) bool {
 	return bits[0]&0x80 != 0 // Check low byte for 8-bit values
 }
 
-// Add adds two 16-bit values represented as byte arrays.
+// Add adds two values represented as byte arrays. Handles both 8-bit and 16-bit values.
 func Add(a, b []byte) []byte {
-	valA := ToUnsigned16(a[0], a[1])
-	valB := ToUnsigned16(b[0], b[1])
+	var valA, valB uint16
+	if len(a) == 2 {
+		valA = ToUnsigned16(a[0], a[1])
+	} else {
+		valA = ToUnsigned8(a[0])
+	}
+	if len(b) == 2 {
+		valB = ToUnsigned16(b[0], b[1])
+	} else {
+		valB = ToUnsigned8(b[0])
+	}
 	result := valA + valB
+	if len(a) == 1 && len(b) == 1 {
+		return []byte{byte(result & 0xFF)}
+	}
 	return []byte{byte(result & 0xFF), byte((result >> 8) & 0xFF)}
 }
 
-// Sub subtracts two 16-bit values represented as byte arrays.
+// Sub subtracts two values represented as byte arrays. Handles both 8-bit and 16-bit values.
 func Sub(a, b []byte) []byte {
-	valA := ToUnsigned16(a[0], a[1])
-	valB := ToUnsigned16(b[0], b[1])
+	var valA, valB uint16
+	if len(a) == 2 {
+		valA = ToUnsigned16(a[0], a[1])
+	} else {
+		valA = ToUnsigned8(a[0])
+	}
+	if len(b) == 2 {
+		valB = ToUnsigned16(b[0], b[1])
+	} else {
+		valB = ToUnsigned8(b[0])
+	}
 	result := valA - valB
+	if len(a) == 1 && len(b) == 1 {
+		return []byte{byte(result & 0xFF)}
+	}
 	return []byte{byte(result & 0xFF), byte((result >> 8) & 0xFF)}
 }
 
