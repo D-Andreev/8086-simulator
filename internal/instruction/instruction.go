@@ -118,6 +118,7 @@ type Instruction struct {
 	DestAddr           string
 	SourceDisplacement []byte
 	DestDisplacement   []byte
+	IPRegister         int
 }
 
 // NewInstruction creates a new Instruction with all default values
