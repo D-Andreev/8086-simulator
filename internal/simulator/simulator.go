@@ -14,6 +14,7 @@ type Result struct {
 
 type Simulator struct {
 	Registers       map[string][]byte
+	Memory          map[uint16][]byte
 	registerOrder   []string
 	flags           map[string]bool
 	flagOrder       []string
@@ -23,6 +24,7 @@ type Simulator struct {
 func NewSimulator(printIPRegister bool) *Simulator {
 	s := &Simulator{
 		Registers:       make(map[string][]byte),
+		Memory:          make(map[uint16][]byte),
 		printIPRegister: printIPRegister,
 	}
 	s.Init()
@@ -86,31 +88,94 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 			case instruction.OpTypeImmToReg:
 				destPrevVal := s.Registers[ins.DestRegister]
 				s.Registers[ins.DestRegister] = ins.Immediate.Raw
-				ipLog := s.updateIPRegister(ins.IPRegister)
-				results = append(
-					results,
-					&Result{
-						Text: fmt.Sprintf(
-							"%s %s, %d ; %s:0x%x->0x%x%s",
-							ins.Op,
-							ins.DestRegister,
-							s.printImmediateValue(ins.Immediate.Raw),
-							ins.DestRegister,
-							destPrevVal[0],
-							s.printImmediateValue(ins.Immediate.Raw),
-							ipLog,
-						),
-					},
-				)
+				if ins.DestAddr == "" {
+					ipLog := s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{
+							Text: fmt.Sprintf(
+								"%s %s, %d ; %s:0x%x->0x%x%s",
+								ins.Op,
+								ins.DestRegister,
+								s.printImmediateValue(ins.Immediate.Raw),
+								ins.DestRegister,
+								destPrevVal[0],
+								s.printImmediateValue(ins.Immediate.Raw),
+								ipLog,
+							),
+						},
+					)
+				} else {
+					disp := ""
+					var ipLog string
+					if len(ins.DestDisplacement) == 2 {
+						s.Memory[bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1])] = ins.Immediate.Raw
+						disp = fmt.Sprintf("%d", bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1]))
+					} else {
+						s.Memory[bits.ToUnsigned8(ins.DestDisplacement[0])] = ins.Immediate.Raw
+						disp = fmt.Sprintf("%d", bits.ToUnsigned8(ins.DestDisplacement[0]))
+					}
+					ipLog = s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{
+							Text: fmt.Sprintf(
+								"%s word [%s+%s], %d ;%s",
+								ins.Op,
+								ins.DestAddr,
+								disp,
+								s.printImmediateValue(ins.Immediate.Raw),
+								ipLog,
+							),
+						},
+					)
+				}
 			case instruction.OpTypeRegMemToFromReg:
 				destPrevVal := s.Registers[ins.DestRegister]
-				sourceVal := s.Registers[ins.SourceRegister]
-				s.Registers[ins.DestRegister] = sourceVal
-				ipLog := s.updateIPRegister(ins.IPRegister)
-				results = append(
-					results,
-					&Result{Text: fmt.Sprintf("%s ; %s:0x%x->0x%x%s", ins.Text, ins.DestRegister, destPrevVal[0], sourceVal[0], ipLog)},
-				)
+				if len(ins.DestDisplacement) == 0 {
+					s.Registers[ins.DestRegister] = ins.Immediate.Raw
+					ipLog := s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{
+							Text: fmt.Sprintf(
+								"%s %s, %d ; %s:0x%x->0x%x%s",
+								ins.Op,
+								ins.DestRegister,
+								s.printImmediateValue(ins.Immediate.Raw),
+								ins.DestRegister,
+								destPrevVal[0],
+								s.printImmediateValue(ins.Immediate.Raw),
+								ipLog,
+							),
+						},
+					)
+				} else {
+					disp := ""
+					var ipLog string
+					if len(ins.DestDisplacement) == 2 {
+						s.Memory[bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1])] = ins.Immediate.Raw
+						disp = fmt.Sprintf("%d", bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1]))
+					} else {
+						s.Memory[bits.ToUnsigned8(ins.DestDisplacement[0])] = ins.Immediate.Raw
+						disp = fmt.Sprintf("%d", bits.ToUnsigned8(ins.DestDisplacement[0]))
+					}
+					s.Registers[ins.DestRegister] = s.Memory[bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1])]
+					ipLog = s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{
+							Text: fmt.Sprintf(
+								"%s word [%s+%s], %d ;%s",
+								ins.Op,
+								ins.DestAddr,
+								disp,
+								s.printImmediateValue(ins.Immediate.Raw),
+								ipLog,
+							),
+						},
+					)
+				}
 			default:
 				return nil, fmt.Errorf("unsupported operand type: %d", ins.OperandType)
 			}

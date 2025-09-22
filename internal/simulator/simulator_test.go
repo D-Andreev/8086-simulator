@@ -312,3 +312,62 @@ func TestSimulatorListing49(t *testing.T) {
 		}
 	}
 }
+
+func TestSimulatorListing51(t *testing.T) {
+	content, err := os.ReadFile("../../listings/listing_0051_memory_mov")
+	if err != nil {
+		t.Fatalf("Error reading file: %v", err)
+	}
+	decoder := decoder.NewDecoder()
+	sim := NewSimulator(true)
+	sim.Init()
+	expectedLogs := []string{
+		"mov word [bp+1000], 1 ; ip:0x0->0x6",
+		"mov word [bp+1002], 2 ; ip:0x6->0xc",
+		"mov word [bp+1004], 3 ; ip:0xc->0x12",
+		"mov word [bp+1006], 4 ; ip:0x12->0x18",
+		"mov bx, 1000 ; bx:0x0->0x3e8 ip:0x18->0x1b",
+		"mov word [bx+4], 10 ; ip:0x1b->0x20",
+		"mov bx, [bp + 1000] ; bx:0x3e8->0x1 ip:0x20->0x24",
+		"mov cx, [bp+1002] ; cx:0x0->0x2 ip:0x24->0x28",
+		"mov dx, [bp+1004] ; dx:0x0->0xa ip:0x28->0x2c",
+		"mov bp, [bp+1006] ; bp:0x0->0x4 ip:0x2c->0x30",
+	}
+	expectedRegisters := map[string][]byte{
+		"ax": bits.Uint16ToBytes(0),
+		"bx": bits.Uint16ToBytes(1),
+		"cx": bits.Uint16ToBytes(2),
+		"dx": bits.Uint16ToBytes(10),
+		"sp": bits.Uint16ToBytes(0),
+		"bp": bits.Uint16ToBytes(4),
+		"si": bits.Uint16ToBytes(0),
+		"di": bits.Uint16ToBytes(0),
+		"ip": bits.Uint16ToBytes(48),
+	}
+
+	instructions, err := decoder.Decode(content)
+	if err != nil {
+		t.Fatalf("Error decoding data: %v", err)
+	}
+	results, err := sim.Run(instructions)
+	if err != nil {
+		t.Fatalf("Error running instructions: %v", err)
+	}
+
+	for i, result := range results {
+		if result.Text != expectedLogs[i] {
+			t.Fatalf("\nExpected instruction: %s\n                 Got: %s",
+				expectedLogs[i],
+				result.Text)
+		}
+	}
+
+	for register, value := range sim.Registers {
+		if !registerValueEquals(t, value, expectedRegisters[register]) {
+			t.Fatalf("\nRegister %s:\n     Expected: %d\n          Got: %d",
+				register,
+				expectedRegisters[register],
+				value)
+		}
+	}
+}
