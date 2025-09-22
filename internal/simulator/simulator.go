@@ -14,6 +14,7 @@ type Result struct {
 
 type Simulator struct {
 	Registers       map[string][]byte
+	Memory          map[uint16][]byte
 	registerOrder   []string
 	flags           map[string]bool
 	flagOrder       []string
@@ -23,6 +24,7 @@ type Simulator struct {
 func NewSimulator(printIPRegister bool) *Simulator {
 	s := &Simulator{
 		Registers:       make(map[string][]byte),
+		Memory:          make(map[uint16][]byte),
 		printIPRegister: printIPRegister,
 	}
 	s.Init()
@@ -84,33 +86,151 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 		case instruction.MOV:
 			switch ins.OperandType {
 			case instruction.OpTypeImmToReg:
-				destPrevVal := s.Registers[ins.DestRegister]
-				s.Registers[ins.DestRegister] = ins.Immediate.Raw
-				ipLog := s.updateIPRegister(ins.IPRegister)
-				results = append(
-					results,
-					&Result{
-						Text: fmt.Sprintf(
-							"%s %s, %d ; %s:0x%x->0x%x%s",
-							ins.Op,
-							ins.DestRegister,
-							s.printImmediateValue(ins.Immediate.Raw),
-							ins.DestRegister,
-							destPrevVal[0],
-							s.printImmediateValue(ins.Immediate.Raw),
-							ipLog,
-						),
-					},
-				)
+				if ins.DestAddr == "" {
+					destPrevVal := s.Registers[ins.DestRegister]
+					s.Registers[ins.DestRegister] = ins.Immediate.Raw
+					ipLog := s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{
+							Text: fmt.Sprintf(
+								"%s %s, %d ; %s:0x%x->0x%x%s",
+								ins.Op,
+								ins.DestRegister,
+								s.printImmediateValue(ins.Immediate.Raw),
+								ins.DestRegister,
+								s.printImmediateValue(destPrevVal),
+								s.printImmediateValue(ins.Immediate.Raw),
+								ipLog,
+							),
+						},
+					)
+				} else {
+					disp := ""
+					var ipLog string
+					if len(ins.DestDisplacement) == 2 {
+						addr := bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1])
+						// Add base register if present
+						if ins.DestAddr != "" && ins.DestAddr != "bp" {
+							baseReg := s.Registers[ins.DestAddr]
+							baseAddr := bits.ToUnsigned16(baseReg[0], baseReg[1])
+							addr += baseAddr
+						}
+						s.Memory[addr] = ins.Immediate.Raw
+						disp = fmt.Sprintf("%d", bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1]))
+					} else {
+						addr := bits.ToUnsigned8(ins.DestDisplacement[0])
+						// Add base register if present
+						if ins.DestAddr != "" && ins.DestAddr != "bp" {
+							baseReg := s.Registers[ins.DestAddr]
+							baseAddr := bits.ToUnsigned16(baseReg[0], baseReg[1])
+							addr += uint16(baseAddr)
+						}
+						s.Memory[addr] = ins.Immediate.Raw
+						disp = fmt.Sprintf("%d", bits.ToUnsigned8(ins.DestDisplacement[0]))
+					}
+					ipLog = s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{
+							Text: fmt.Sprintf(
+								"%s word [%s+%s], %d ;%s",
+								ins.Op,
+								ins.DestAddr,
+								disp,
+								s.printImmediateValue(ins.Immediate.Raw),
+								ipLog,
+							),
+						},
+					)
+				}
 			case instruction.OpTypeRegMemToFromReg:
-				destPrevVal := s.Registers[ins.DestRegister]
-				sourceVal := s.Registers[ins.SourceRegister]
-				s.Registers[ins.DestRegister] = sourceVal
-				ipLog := s.updateIPRegister(ins.IPRegister)
-				results = append(
-					results,
-					&Result{Text: fmt.Sprintf("%s ; %s:0x%x->0x%x%s", ins.Text, ins.DestRegister, destPrevVal[0], sourceVal[0], ipLog)},
-				)
+				if len(ins.SourceDisplacement) > 0 {
+					// Memory to register
+					var sourceVal []byte
+					var addr uint16
+					if len(ins.SourceDisplacement) >= 2 {
+						addr = bits.ToUnsigned16(ins.SourceDisplacement[0], ins.SourceDisplacement[1])
+						sourceVal = s.Memory[addr]
+					} else if len(ins.SourceDisplacement) == 1 {
+						addr = bits.ToUnsigned8(ins.SourceDisplacement[0])
+						sourceVal = s.Memory[addr]
+					}
+					if sourceVal == nil {
+						sourceVal = []byte{0, 0}
+					}
+					destPrevVal := s.Registers[ins.DestRegister]
+					s.Registers[ins.DestRegister] = sourceVal
+					ipLog := s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{Text: fmt.Sprintf(
+							"%s ; %s:0x%x->0x%x%s",
+							ins.Text,
+							ins.DestRegister,
+							s.printImmediateValue(destPrevVal),
+							s.printImmediateValue(sourceVal),
+							ipLog,
+						)},
+					)
+				} else if ins.SourceRegister != "" {
+					// Register to register
+					destPrevVal := s.Registers[ins.DestRegister]
+					sourceVal := s.Registers[ins.SourceRegister]
+					s.Registers[ins.DestRegister] = sourceVal
+					ipLog := s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{Text: fmt.Sprintf("%s ; %s:0x%x->0x%x%s", ins.Text, ins.DestRegister, s.printImmediateValue(destPrevVal), s.printImmediateValue(sourceVal), ipLog)},
+					)
+				} else if len(ins.DestDisplacement) == 0 {
+					destPrevVal := s.Registers[ins.DestRegister]
+					s.Registers[ins.DestRegister] = ins.Immediate.Raw
+					ipLog := s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{
+							Text: fmt.Sprintf(
+								"%s %s, %d ; %s:0x%x->0x%x%s",
+								ins.Op,
+								ins.DestRegister,
+								s.printImmediateValue(ins.Immediate.Raw),
+								ins.DestRegister,
+								s.printImmediateValue(destPrevVal),
+								s.printImmediateValue(ins.Immediate.Raw),
+								ipLog,
+							),
+						},
+					)
+				} else {
+					disp := ""
+					var ipLog string
+					if ins.Immediate != nil && len(ins.DestDisplacement) >= 2 {
+						s.Memory[bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1])] = ins.Immediate.Raw
+						disp = fmt.Sprintf("%d", bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1]))
+					} else if ins.Immediate != nil && len(ins.DestDisplacement) == 1 {
+						s.Memory[bits.ToUnsigned8(ins.DestDisplacement[0])] = ins.Immediate.Raw
+						disp = fmt.Sprintf("%d", bits.ToUnsigned8(ins.DestDisplacement[0]))
+					}
+					ipLog = s.updateIPRegister(ins.IPRegister)
+					immediateValue := 0
+					if ins.Immediate != nil {
+						immediateValue = int(s.printImmediateValue(ins.Immediate.Raw))
+					}
+					results = append(
+						results,
+						&Result{
+							Text: fmt.Sprintf(
+								"%s word [%s+%s], %d ;%s",
+								ins.Op,
+								ins.DestAddr,
+								disp,
+								immediateValue,
+								ipLog,
+							),
+						},
+					)
+				}
 			default:
 				return nil, fmt.Errorf("unsupported operand type: %d", ins.OperandType)
 			}

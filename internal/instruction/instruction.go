@@ -186,7 +186,7 @@ func (ins *Instruction) GetDestReg() string {
 func (ins *Instruction) GetFromToRegMemInstrByteCount() int {
 	defaultInc := 2
 	if ins.Mod == 0b00 && ins.RM == 0b110 {
-		if ins.SourceAddr == "bp" { // bp is speacial case for direct address
+		if ins.SourceRegister == "" && ins.SourceAddr == "bp" { // bp is speacial case for direct address
 			defaultInc += 1
 		} else {
 			defaultInc += 2
@@ -355,6 +355,96 @@ var Table = []*Pattern{
 				IsSigned: true,
 			}
 		}
+		return p
+	}(),
+	// MOV - Immediate to register/memory
+	func() *Pattern {
+		p := NewPattern()
+		p.OpCode = 0b1100011
+		p.Op = MOV
+		p.OperandType = OpTypeImmToReg
+		p.GetBytesCount = func(_ *Pattern, ins *Instruction) int {
+			inc := 3
+			if ins.WBit {
+				inc += 1
+			}
+			switch ins.Mod {
+			case 0b00:
+				if ins.RM == 0b110 {
+					inc += 2
+				}
+
+			case 0b11:
+				inc += 0
+			case 0b01:
+				inc += 1
+			case 0b10:
+				inc += 2
+			default:
+				return 0
+			}
+			return inc
+		}
+		p.GetOpCode = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i], 1, 7) }
+		p.GetWBit = func(instructions []byte, i int) bool { return bits.GetBit(instructions[i], 0) }
+		p.GetReg = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i+1], 3, 3) }
+		p.GetRM = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i+1], 0, 3) }
+		p.GetMod = func(instructions []byte, i int) byte { return bits.GetBits(instructions[i+1], 6, 2) }
+		p.GetText = func(p *Pattern, ins *Instruction) string {
+			if !ins.DBit {
+				tmpAddr := ins.SourceAddr
+				tmpDisp := ins.SourceDisplacement
+				ins.SourceAddr = ins.DestAddr
+				ins.SourceDisplacement = ins.DestDisplacement
+				ins.DestAddr = tmpAddr
+				ins.DestDisplacement = tmpDisp
+			}
+
+			source := fmt.Sprintf("%d", ins.Immediate.Value)
+			dest := ins.formatOperand(ins.DestAddr, ins.DestDisplacement, ins.DestRegister)
+			insType := "byte"
+			if ins.WBit {
+				insType = "word"
+			}
+
+			if ins.Mod == 0b11 {
+				return fmt.Sprintf("%s %s, %s", p.Op, dest, source)
+			}
+
+			return fmt.Sprintf("%s %s %s, %s", p.Op, insType, dest, source)
+		}
+		p.GetImmediate = func(instructions []byte, i int, ins *Instruction) *ImmediateData {
+			idx := 0
+			switch ins.Mod {
+			case 0b00:
+				if ins.RM == 0b110 {
+					idx = i + 4
+				} else {
+					idx = i + 2
+				}
+			case 0b01:
+				idx = i + 3
+			case 0b10:
+				idx = i + 4
+			case 0b11:
+				idx = i + 2
+			}
+
+			if ins.WBit {
+				return &ImmediateData{
+					Raw:      []byte{instructions[idx], instructions[idx+1]},
+					Value:    int(bits.ToUnsigned16(instructions[idx], instructions[idx+1])),
+					IsSigned: false,
+				}
+			}
+
+			return &ImmediateData{
+				Raw:      []byte{instructions[idx]},
+				Value:    int(bits.ToUnsigned8(instructions[idx])),
+				IsSigned: false,
+			}
+		}
+
 		return p
 	}(),
 
