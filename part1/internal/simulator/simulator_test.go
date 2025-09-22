@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/8086-simulator/internal/bits"
-	"github.com/8086-simulator/internal/decoder"
+	"github.com/8086-simulator/part1/internal/bits"
+	"github.com/8086-simulator/part1/internal/decoder"
 )
 
 func TestSimulatorListing43(t *testing.T) {

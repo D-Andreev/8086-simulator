@@ -26,21 +26,25 @@ jobs:
       run: go version
     
     - name: Download dependencies
+      working-directory: ./part1
       run: go mod download
     
     - name: Verify dependencies
+      working-directory: ./part1
       run: go mod verify
     
     - name: Run tests
+      working-directory: ./part1
       run: go test -v ./...
     
     - name: Run tests with coverage
+      working-directory: ./part1
       run: go test -v -coverprofile=coverage.out ./...
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
-        file: ./coverage.out
+        file: ./part1/coverage.out
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
@@ -58,12 +62,15 @@ jobs:
         go-version: '1.24'
     
     - name: Download dependencies
+      working-directory: ./part1
       run: go mod download
     
     - name: Build
+      working-directory: ./part1
       run: go build -v ./...
     
     - name: Build main executable
+      working-directory: ./part1
       run: go build -o 8086-simulator ./main.go
 
   lint:
@@ -81,4 +88,5 @@ jobs:
       uses: golangci/golangci-lint-action@v3
       with:
         version: latest
+        working-directory: ./part1
         args: --timeout=5m
