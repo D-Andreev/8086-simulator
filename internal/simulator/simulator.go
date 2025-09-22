@@ -86,9 +86,9 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 		case instruction.MOV:
 			switch ins.OperandType {
 			case instruction.OpTypeImmToReg:
-				destPrevVal := s.Registers[ins.DestRegister]
-				s.Registers[ins.DestRegister] = ins.Immediate.Raw
 				if ins.DestAddr == "" {
+					destPrevVal := s.Registers[ins.DestRegister]
+					s.Registers[ins.DestRegister] = ins.Immediate.Raw
 					ipLog := s.updateIPRegister(ins.IPRegister)
 					results = append(
 						results,
@@ -99,7 +99,7 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 								ins.DestRegister,
 								s.printImmediateValue(ins.Immediate.Raw),
 								ins.DestRegister,
-								destPrevVal[0],
+								s.printImmediateValue(destPrevVal),
 								s.printImmediateValue(ins.Immediate.Raw),
 								ipLog,
 							),
@@ -109,10 +109,24 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 					disp := ""
 					var ipLog string
 					if len(ins.DestDisplacement) == 2 {
-						s.Memory[bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1])] = ins.Immediate.Raw
+						addr := bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1])
+						// Add base register if present
+						if ins.DestAddr != "" && ins.DestAddr != "bp" {
+							baseReg := s.Registers[ins.DestAddr]
+							baseAddr := bits.ToUnsigned16(baseReg[0], baseReg[1])
+							addr += baseAddr
+						}
+						s.Memory[addr] = ins.Immediate.Raw
 						disp = fmt.Sprintf("%d", bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1]))
 					} else {
-						s.Memory[bits.ToUnsigned8(ins.DestDisplacement[0])] = ins.Immediate.Raw
+						addr := bits.ToUnsigned8(ins.DestDisplacement[0])
+						// Add base register if present
+						if ins.DestAddr != "" && ins.DestAddr != "bp" {
+							baseReg := s.Registers[ins.DestAddr]
+							baseAddr := bits.ToUnsigned16(baseReg[0], baseReg[1])
+							addr += uint16(baseAddr)
+						}
+						s.Memory[addr] = ins.Immediate.Raw
 						disp = fmt.Sprintf("%d", bits.ToUnsigned8(ins.DestDisplacement[0]))
 					}
 					ipLog = s.updateIPRegister(ins.IPRegister)
@@ -131,8 +145,46 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 					)
 				}
 			case instruction.OpTypeRegMemToFromReg:
-				destPrevVal := s.Registers[ins.DestRegister]
-				if len(ins.DestDisplacement) == 0 {
+				if len(ins.SourceDisplacement) > 0 {
+					// Memory to register
+					var sourceVal []byte
+					var addr uint16
+					if len(ins.SourceDisplacement) >= 2 {
+						addr = bits.ToUnsigned16(ins.SourceDisplacement[0], ins.SourceDisplacement[1])
+						sourceVal = s.Memory[addr]
+					} else if len(ins.SourceDisplacement) == 1 {
+						addr = bits.ToUnsigned8(ins.SourceDisplacement[0])
+						sourceVal = s.Memory[addr]
+					}
+					if sourceVal == nil {
+						sourceVal = []byte{0, 0}
+					}
+					destPrevVal := s.Registers[ins.DestRegister]
+					s.Registers[ins.DestRegister] = sourceVal
+					ipLog := s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{Text: fmt.Sprintf(
+							"%s ; %s:0x%x->0x%x%s",
+							ins.Text,
+							ins.DestRegister,
+							s.printImmediateValue(destPrevVal),
+							s.printImmediateValue(sourceVal),
+							ipLog,
+						)},
+					)
+				} else if ins.SourceRegister != "" {
+					// Register to register
+					destPrevVal := s.Registers[ins.DestRegister]
+					sourceVal := s.Registers[ins.SourceRegister]
+					s.Registers[ins.DestRegister] = sourceVal
+					ipLog := s.updateIPRegister(ins.IPRegister)
+					results = append(
+						results,
+						&Result{Text: fmt.Sprintf("%s ; %s:0x%x->0x%x%s", ins.Text, ins.DestRegister, s.printImmediateValue(destPrevVal), s.printImmediateValue(sourceVal), ipLog)},
+					)
+				} else if len(ins.DestDisplacement) == 0 {
+					destPrevVal := s.Registers[ins.DestRegister]
 					s.Registers[ins.DestRegister] = ins.Immediate.Raw
 					ipLog := s.updateIPRegister(ins.IPRegister)
 					results = append(
@@ -144,7 +196,7 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 								ins.DestRegister,
 								s.printImmediateValue(ins.Immediate.Raw),
 								ins.DestRegister,
-								destPrevVal[0],
+								s.printImmediateValue(destPrevVal),
 								s.printImmediateValue(ins.Immediate.Raw),
 								ipLog,
 							),
@@ -153,15 +205,18 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 				} else {
 					disp := ""
 					var ipLog string
-					if len(ins.DestDisplacement) == 2 {
+					if ins.Immediate != nil && len(ins.DestDisplacement) >= 2 {
 						s.Memory[bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1])] = ins.Immediate.Raw
 						disp = fmt.Sprintf("%d", bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1]))
-					} else {
+					} else if ins.Immediate != nil && len(ins.DestDisplacement) == 1 {
 						s.Memory[bits.ToUnsigned8(ins.DestDisplacement[0])] = ins.Immediate.Raw
 						disp = fmt.Sprintf("%d", bits.ToUnsigned8(ins.DestDisplacement[0]))
 					}
-					s.Registers[ins.DestRegister] = s.Memory[bits.ToUnsigned16(ins.DestDisplacement[0], ins.DestDisplacement[1])]
 					ipLog = s.updateIPRegister(ins.IPRegister)
+					immediateValue := 0
+					if ins.Immediate != nil {
+						immediateValue = int(s.printImmediateValue(ins.Immediate.Raw))
+					}
 					results = append(
 						results,
 						&Result{
@@ -170,7 +225,7 @@ func (s *Simulator) Run(instructions []*instruction.Instruction) ([]*Result, err
 								ins.Op,
 								ins.DestAddr,
 								disp,
-								s.printImmediateValue(ins.Immediate.Raw),
+								immediateValue,
 								ipLog,
 							),
 						},
