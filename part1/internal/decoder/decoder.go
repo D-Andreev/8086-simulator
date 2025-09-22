@@ -3,7 +3,7 @@ package decoder
 import (
 	"fmt"
 
-	"github.com/8086-simulator/internal/instruction"
+	"github.com/8086-simulator/part1/internal/instruction"
 )
 
 type Decoder struct{}

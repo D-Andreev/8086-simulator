@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/8086-simulator/internal/decoder"
-	"github.com/8086-simulator/internal/simulator"
+	"github.com/8086-simulator/part1/internal/decoder"
+	"github.com/8086-simulator/part1/internal/simulator"
 )
 
 const (

@@ -3,7 +3,7 @@ package instruction
 import (
 	"fmt"
 
-	"github.com/8086-simulator/internal/bits"
+	"github.com/8086-simulator/part1/internal/bits"
 )
 
 type Op string

@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/8086-simulator/internal/bits"
-	"github.com/8086-simulator/internal/instruction"
+	"github.com/8086-simulator/part1/internal/bits"
+	"github.com/8086-simulator/part1/internal/instruction"
 )
 
 type Result struct {
