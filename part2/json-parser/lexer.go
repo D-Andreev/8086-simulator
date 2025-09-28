@@ -10,6 +10,13 @@ type TokenType string
 
 const (
 	UNKNOWN       TokenType = "UNKNOWN"
+	SPACE         TokenType = "SPACE"
+	NEWLINE       TokenType = "NEWLINE"
+	TAB           TokenType = "TAB"
+	CR            TokenType = "CR"
+	LF            TokenType = "LF"
+	FF            TokenType = "FF"
+	VT            TokenType = "VT"
 	NUMBER        TokenType = "NUMBER"
 	STRING        TokenType = "STRING"
 	BOOL          TokenType = "BOOL"
@@ -56,6 +63,9 @@ func (l *Lexer) Tokenize() []Token {
 			tokens = append(tokens, Token{Type: BOOL, Literal: l.readBool()})
 		} else if l.isNull() {
 			tokens = append(tokens, Token{Type: NULL, Literal: l.readNull()})
+		} else if l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' || l.ch == '\f' || l.ch == '\v' {
+			l.position++
+			continue
 		} else {
 			tokens = append(tokens, Token{Type: UNKNOWN, Literal: string(l.ch)})
 		}
@@ -79,7 +89,11 @@ func (l *Lexer) readString() string {
 }
 
 func (l *Lexer) isDigit() bool {
-	return l.ch >= '0' && l.ch <= '9'
+	return (l.ch >= '0' && l.ch <= '9') ||
+		(l.ch == '-' &&
+			l.input[l.position+1] >= '0' &&
+			l.input[l.position+1] <= '9') ||
+		l.ch == '.'
 }
 
 func (l *Lexer) readNumber() string {
@@ -109,6 +123,9 @@ func (l *Lexer) readBool() string {
 }
 
 func (l *Lexer) isBool() bool {
+	if l.position+4 > len(l.input) || l.position+5 > len(l.input) {
+		return false
+	}
 	return l.input[l.position:l.position+4] == "true" || l.input[l.position:l.position+5] == "false"
 }
 
@@ -119,5 +136,8 @@ func (l *Lexer) readNull() string {
 }
 
 func (l *Lexer) isNull() bool {
+	if l.position+4 > len(l.input) {
+		return false
+	}
 	return l.input[l.position:l.position+4] == "null"
 }

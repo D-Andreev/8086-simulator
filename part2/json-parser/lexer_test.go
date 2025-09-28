@@ -187,6 +187,68 @@ func TestLexer(t *testing.T) {
 				{Type: CLOSE_BRACE, Literal: "}"},
 			},
 		},
+		{
+			input: `{
+  "pairs": [
+    {
+      "x0": -21.907810617638056,
+      "y0": -90,
+      "x1": 22.221643690625143,
+      "y1": -82.10060933854065
+    },
+	{
+      "x0": -158.7979515172962,
+      "y0": 13.619545329636122,
+      "x1": -113.67448769312786,
+      "y1": 35.318722339808645
+    },
+  ]
+}`,
+			expectedTokens: []Token{
+				{Type: OPEN_BRACE, Literal: "{"},
+				{Type: STRING, Literal: "pairs"},
+				{Type: COLON, Literal: ":"},
+				{Type: OPEN_BRACKET, Literal: "["},
+				{Type: OPEN_BRACE, Literal: "{"},
+				{Type: STRING, Literal: "x0"},
+				{Type: COLON, Literal: ":"},
+				{Type: NUMBER, Literal: "-21.907810617638056"},
+				{Type: COMMA, Literal: ","},
+				{Type: STRING, Literal: "y0"},
+				{Type: COLON, Literal: ":"},
+				{Type: NUMBER, Literal: "-90"},
+				{Type: COMMA, Literal: ","},
+				{Type: STRING, Literal: "x1"},
+				{Type: COLON, Literal: ":"},
+				{Type: NUMBER, Literal: "22.221643690625143"},
+				{Type: COMMA, Literal: ","},
+				{Type: STRING, Literal: "y1"},
+				{Type: COLON, Literal: ":"},
+				{Type: NUMBER, Literal: "-82.10060933854065"},
+				{Type: CLOSE_BRACE, Literal: "}"},
+				{Type: COMMA, Literal: ","},
+				{Type: OPEN_BRACE, Literal: "{"},
+				{Type: STRING, Literal: "x0"},
+				{Type: COLON, Literal: ":"},
+				{Type: NUMBER, Literal: "-158.7979515172962"},
+				{Type: COMMA, Literal: ","},
+				{Type: STRING, Literal: "y0"},
+				{Type: COLON, Literal: ":"},
+				{Type: NUMBER, Literal: "13.619545329636122"},
+				{Type: COMMA, Literal: ","},
+				{Type: STRING, Literal: "x1"},
+				{Type: COLON, Literal: ":"},
+				{Type: NUMBER, Literal: "-113.67448769312786"},
+				{Type: COMMA, Literal: ","},
+				{Type: STRING, Literal: "y1"},
+				{Type: COLON, Literal: ":"},
+				{Type: NUMBER, Literal: "35.318722339808645"},
+				{Type: CLOSE_BRACE, Literal: "}"},
+				{Type: COMMA, Literal: ","},
+				{Type: CLOSE_BRACKET, Literal: "]"},
+				{Type: CLOSE_BRACE, Literal: "}"},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {

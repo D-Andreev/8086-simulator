@@ -4,171 +4,110 @@ import (
 	"testing"
 )
 
-type ParserTestCase struct {
-	input        []Token
-	expectedNode *Node
-}
-
-func TestParser(t *testing.T) {
-	testCases := []ParserTestCase{
+func TestParserWithLexer(t *testing.T) {
+	testCases := []struct {
+		jsonString   string
+		expectedNode *Node
+	}{
 		{
-			input:        []Token{},
+			jsonString:   "",
 			expectedNode: nil,
 		},
 		{
-			input: []Token{
-				{Type: OPEN_BRACE, Literal: "{"},
-				{Type: STRING, Literal: "name"},
-				{Type: STRING, Literal: "john"},
-				{Type: STRING, Literal: "age"},
-				{Type: NUMBER, Literal: "30"},
-				{Type: CLOSE_BRACE, Literal: "}"},
-			},
+			jsonString: `{"name": "john", "age": 30}`,
 			expectedNode: &Node{
 				Type: NODE_OBJECT, Value: nil, Children: []*Node{
-					{Type: NODE_STRING, Value: "name"},
-					{Type: NODE_STRING, Value: "john"},
-					{Type: NODE_STRING, Value: "age"},
-					{Type: NODE_NUMBER, Value: "30"},
-				}}},
+					{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "name"}, Val: &Node{Type: NODE_STRING, Value: "john"}},
+					{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "age"}, Val: &Node{Type: NODE_NUMBER, Value: "30"}},
+				}},
+		},
 		{
-			input: []Token{
-				{Type: OPEN_BRACKET, Literal: "["},
-				{Type: STRING, Literal: "jack"},
-				{Type: STRING, Literal: "john"},
-				{Type: CLOSE_BRACKET, Literal: "]"},
-			},
+			jsonString: `["jack", "john"]`,
 			expectedNode: &Node{
 				Type: NODE_ARRAY, Value: nil, Children: []*Node{
 					{Type: NODE_STRING, Value: "jack"},
 					{Type: NODE_STRING, Value: "john"},
 				}},
 		},
-		// nested objects
 		{
-			input: []Token{
-				{Type: OPEN_BRACE, Literal: "{"},
-				{Type: STRING, Literal: "id"},
-				{Type: NUMBER, Literal: "1"},
-				{Type: STRING, Literal: "address"},
-				{Type: OPEN_BRACE, Literal: "{"},
-				{Type: STRING, Literal: "street"},
-				{Type: STRING, Literal: "main"},
-				{Type: STRING, Literal: "postcode"},
-				{Type: NUMBER, Literal: "123"},
-				{Type: CLOSE_BRACE, Literal: "}"},
-				{Type: CLOSE_BRACE, Literal: "}"},
-			},
+			jsonString: `{"id": 1, "address": {"street": "main", "postcode": 123}}`,
 			expectedNode: &Node{
 				Type: NODE_OBJECT, Value: nil, Children: []*Node{
-					{Type: NODE_STRING, Value: "id"},
-					{Type: NODE_NUMBER, Value: "1"},
-					{Type: NODE_STRING, Value: "address"},
-					{Type: NODE_OBJECT, Value: nil, Children: []*Node{
-						{Type: NODE_STRING, Value: "street"},
-						{Type: NODE_STRING, Value: "main"},
-						{Type: NODE_STRING, Value: "postcode"},
-						{Type: NODE_NUMBER, Value: "123"},
-					}},
+					{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "id"}, Val: &Node{Type: NODE_NUMBER, Value: "1"}},
+					{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "address"}, Val: &Node{Type: NODE_OBJECT, Value: nil, Children: []*Node{
+						{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "street"}, Val: &Node{Type: NODE_STRING, Value: "main"}},
+						{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "postcode"}, Val: &Node{Type: NODE_NUMBER, Value: "123"}},
+					}}},
 				}},
 		},
-		// array of objects
 		{
-			input: []Token{
-				{Type: OPEN_BRACKET, Literal: "["},
-				{Type: OPEN_BRACE, Literal: "{"},
-				{Type: STRING, Literal: "id"},
-				{Type: NUMBER, Literal: "1"},
-				{Type: CLOSE_BRACE, Literal: "}"},
-				{Type: OPEN_BRACE, Literal: "{"},
-				{Type: STRING, Literal: "id"},
-				{Type: NUMBER, Literal: "2"},
-				{Type: CLOSE_BRACE, Literal: "}"},
-				{Type: CLOSE_BRACKET, Literal: "]"},
-			},
+			jsonString: `[{"id": 1}, {"id": 2}]`,
 			expectedNode: &Node{
 				Type: NODE_ARRAY, Value: nil, Children: []*Node{
 					{Type: NODE_OBJECT, Value: nil, Children: []*Node{
-						{Type: NODE_STRING, Value: "id"},
-						{Type: NODE_NUMBER, Value: "1"},
+						{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "id"}, Val: &Node{Type: NODE_NUMBER, Value: "1"}},
 					}},
 					{Type: NODE_OBJECT, Value: nil, Children: []*Node{
-						{Type: NODE_STRING, Value: "id"},
-						{Type: NODE_NUMBER, Value: "2"},
+						{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "id"}, Val: &Node{Type: NODE_NUMBER, Value: "2"}},
 					}},
 				}},
 		},
-		// 3 levels nested objects
 		{
-			input: []Token{
-				{Type: OPEN_BRACE, Literal: "{"},
-				{Type: STRING, Literal: "id"},
-				{Type: NUMBER, Literal: "1"},
-				{Type: STRING, Literal: "address"},
-				{Type: OPEN_BRACE, Literal: "{"},
-				{Type: STRING, Literal: "street"},
-				{Type: STRING, Literal: "main"},
-				{Type: STRING, Literal: "block"},
-				{Type: OPEN_BRACE, Literal: "{"},
-				{Type: STRING, Literal: "n"},
-				{Type: NUMBER, Literal: "1"},
-				{Type: STRING, Literal: "ap"},
-				{Type: NUMBER, Literal: "27"},
-				{Type: CLOSE_BRACE, Literal: "}"},
-				{Type: CLOSE_BRACE, Literal: "}"},
-				{Type: CLOSE_BRACE, Literal: "}"},
-			},
+			jsonString: `{"pairs": [{"x0": -21.907810617638056, "y0": -90, "x1": 22.221643690625143, "y1": -82.10060933854065}, {"x0": -158.7979515172962, "y0": 13.619545329636122, "x1": -113.67448769312786, "y1": 35.318722339808645}]}`,
 			expectedNode: &Node{
 				Type: NODE_OBJECT, Value: nil, Children: []*Node{
-					{Type: NODE_STRING, Value: "id"},
-					{Type: NODE_NUMBER, Value: "1"},
-					{Type: NODE_STRING, Value: "address"},
-					{Type: NODE_OBJECT, Value: nil, Children: []*Node{
-						{Type: NODE_STRING, Value: "street"},
-						{Type: NODE_STRING, Value: "main"},
-						{Type: NODE_STRING, Value: "block"},
+					{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "pairs"}, Val: &Node{Type: NODE_ARRAY, Value: nil, Children: []*Node{
 						{Type: NODE_OBJECT, Value: nil, Children: []*Node{
-							{Type: NODE_STRING, Value: "n"},
-							{Type: NODE_NUMBER, Value: "1"},
-							{Type: NODE_STRING, Value: "ap"},
-							{Type: NODE_NUMBER, Value: "27"},
+							{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "x0"}, Val: &Node{Type: NODE_NUMBER, Value: "-21.907810617638056"}},
+							{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "y0"}, Val: &Node{Type: NODE_NUMBER, Value: "-90"}},
+							{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "x1"}, Val: &Node{Type: NODE_NUMBER, Value: "22.221643690625143"}},
+							{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "y1"}, Val: &Node{Type: NODE_NUMBER, Value: "-82.10060933854065"}},
 						}},
-					}},
+						{Type: NODE_OBJECT, Value: nil, Children: []*Node{
+							{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "x0"}, Val: &Node{Type: NODE_NUMBER, Value: "-158.7979515172962"}},
+							{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "y0"}, Val: &Node{Type: NODE_NUMBER, Value: "13.619545329636122"}},
+							{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "x1"}, Val: &Node{Type: NODE_NUMBER, Value: "-113.67448769312786"}},
+							{Type: NODE_KEY_VALUE, Key: &Node{Type: NODE_STRING, Value: "y1"}, Val: &Node{Type: NODE_NUMBER, Value: "35.318722339808645"}},
+						}},
+					}}},
 				}},
 		},
 	}
 
 	for _, testCase := range testCases {
-		parser := NewParser(testCase.input)
+		lexer := NewLexer(testCase.jsonString)
+		tokens := lexer.Tokenize()
+
+		parser := NewParser(tokens)
 		node := parser.Parse()
 
-		compareNodes(t, testCase, node, testCase.expectedNode)
+		compareNodesWithLexer(t, testCase.jsonString, node, testCase.expectedNode)
 	}
 }
 
-func compareNodes(t *testing.T, testCase ParserTestCase, node *Node, expectedNode *Node) {
+func compareNodesWithLexer(t *testing.T, jsonString string, node *Node, expectedNode *Node) {
 	t.Helper()
 
 	if expectedNode == nil || node == nil {
 		if expectedNode != node {
-			t.Errorf("Expected node to be %v, got: %v in test case: %s", expectedNode, node, testCase.input)
+			t.Errorf("Expected node to be %v, got: %v in test case with JSON: %s", expectedNode, node, jsonString)
 		}
 		return
 	}
 
 	if node.Type != expectedNode.Type {
-		t.Errorf("Expected node type: %v, got: %v in test case: %s", expectedNode.Type, node.Type, testCase.input)
+		t.Errorf("Expected node type: %v, got: %v in test case with JSON: %s", expectedNode.Type, node.Type, jsonString)
 	}
 	if node.Value != expectedNode.Value {
-		t.Errorf("Expected node value: %v, got: %v in test case: %s", expectedNode.Value, node.Value, testCase.input)
+		t.Errorf("Expected node value: %v, got: %v in test case with JSON: %s", expectedNode.Value, node.Value, jsonString)
 	}
 	if node.Children != nil {
 		if len(node.Children) != len(expectedNode.Children) {
-			t.Errorf("Expected %d children, got %d in test case: %s", len(expectedNode.Children), len(node.Children), testCase.input)
+			t.Errorf("Expected %d children, got %d in test case with JSON: %s", len(expectedNode.Children), len(node.Children), jsonString)
 			return
 		}
 		for i := range node.Children {
-			compareNodes(t, testCase, node.Children[i], expectedNode.Children[i])
+			compareNodesWithLexer(t, jsonString, node.Children[i], expectedNode.Children[i])
 		}
 	}
 }
