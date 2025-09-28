@@ -8,45 +8,9 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+
+	harvestine "github.com/8086-simulator/part2/harvestine"
 )
-
-// Square calculates the square of a number
-func Square(A float64) float64 {
-	Result := A * A
-	return Result
-}
-
-// RadiansFromDegrees converts degrees to radians
-func RadiansFromDegrees(Degrees float64) float64 {
-	Result := 0.01745329251994329577 * Degrees
-	return Result
-}
-
-// ReferenceHaversine calculates the Haversine distance between two points on Earth
-// NOTE: EarthRadius is generally expected to be 6372.8
-func ReferenceHaversine(X0, Y0, X1, Y1, EarthRadius float64) float64 {
-	/* NOTE: This is not meant to be a "good" way to calculate the Haversine distance.
-	   Instead, it attempts to follow, as closely as possible, the formula used in the real-world
-	   question on which these homework exercises are loosely based.
-	*/
-
-	lat1 := Y0
-	lat2 := Y1
-	lon1 := X0
-	lon2 := X1
-
-	dLat := RadiansFromDegrees(lat2 - lat1)
-	dLon := RadiansFromDegrees(lon2 - lon1)
-	lat1 = RadiansFromDegrees(lat1)
-	lat2 = RadiansFromDegrees(lat2)
-
-	a := Square(math.Sin(dLat/2.0)) + math.Cos(lat1)*math.Cos(lat2)*Square(math.Sin(dLon/2))
-	c := 2.0 * math.Asin(math.Sqrt(a))
-
-	Result := EarthRadius * c
-
-	return Result
-}
 
 // CoordinatePair represents a pair of coordinates (x0, y0, x1, y1)
 type CoordinatePair struct {
@@ -68,7 +32,7 @@ func RandomFloatInRange(min, max float64, seed int64) float64 {
 	return min + NewRandom.Float64()*(max-min)
 }
 
-// WriteDistancesToBinaryFile writes distances to a binary file with newlines and total sum
+// WriteDistancesToBinaryFile writes distances to a binary file with total sum
 func WriteDistancesToBinaryFile(filename string, distances []float64) (float64, error) {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -84,11 +48,6 @@ func WriteDistancesToBinaryFile(filename string, distances []float64) (float64, 
 		if err != nil {
 			return 0, err
 		}
-
-		_, err = file.Write([]byte{'\n'})
-		if err != nil {
-			return 0, err
-		}
 	}
 
 	err = binary.Write(file, binary.LittleEndian, totalSum)
@@ -99,7 +58,7 @@ func WriteDistancesToBinaryFile(filename string, distances []float64) (float64, 
 	return totalSum, nil
 }
 
-func main() {
+func Generate() {
 	exampleUsage := "Usage: generator <uniform|cluster> <random seed> <number of coordinates paris to generate>"
 	if len(os.Args) != 4 {
 		fmt.Println(exampleUsage)
@@ -170,7 +129,7 @@ func main() {
 			}
 
 			// Calculate Haversine distance for this pair
-			distances[i] = ReferenceHaversine(x0, y0, x1, y1, earthRadius)
+			distances[i] = harvestine.ReferenceHaversine(x0, y0, x1, y1, earthRadius)
 		}
 	case "cluster":
 		// Generate clustered coordinates (points closer together)
@@ -212,7 +171,7 @@ func main() {
 				Y1: y1,
 			}
 
-			distances[i] = ReferenceHaversine(x0, y0, x1, y1, earthRadius)
+			distances[i] = harvestine.ReferenceHaversine(x0, y0, x1, y1, earthRadius)
 		}
 	}
 
@@ -242,4 +201,8 @@ func main() {
 	fmt.Printf("Total sum of all distances: %.6f km\n", totalSum)
 	fmt.Printf("JSON file saved as: %s\n", jsonFilename)
 	fmt.Printf("Binary file saved as: %s\n", binaryFilename)
+}
+
+func main() {
+	Generate()
 }
